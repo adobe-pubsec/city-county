@@ -140,11 +140,41 @@ function decorateNavItem(li) {
 function decorateBrandSection(section) {
   section.classList.add('brand-section');
   const brandLink = section.querySelector('a');
-  const [, text] = brandLink.childNodes;
-  const span = document.createElement('span');
-  span.className = 'brand-text';
-  span.append(text);
-  brandLink.append(span);
+
+  // Replace any existing icon with the city logo
+  const existingIcon = brandLink.querySelector('img, svg, .icon');
+  const logo = document.createElement('img');
+  logo.src = '/img/harrisonburg-logo.png';
+  logo.alt = 'City of Harrisonburg';
+  logo.className = 'brand-logo';
+  if (existingIcon) {
+    existingIcon.replaceWith(logo);
+  } else {
+    brandLink.prepend(logo);
+  }
+
+  // Wrap remaining text node as brand-text
+  const textNode = [...brandLink.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
+  if (textNode) {
+    const span = document.createElement('span');
+    span.className = 'brand-text';
+    span.textContent = textNode.textContent.trim();
+    textNode.replaceWith(span);
+  }
+
+  // Mobile hamburger toggle
+  const toggle = document.createElement('button');
+  toggle.className = 'mobile-nav-toggle';
+  toggle.setAttribute('aria-label', 'Open navigation menu');
+  toggle.setAttribute('aria-expanded', 'false');
+  toggle.innerHTML = '<span class="material-symbols-outlined">menu</span>';
+  toggle.addEventListener('click', () => {
+    const header = document.body.querySelector('header');
+    const isOpen = header.classList.toggle('is-mobile-open');
+    toggle.setAttribute('aria-expanded', String(isOpen));
+    toggle.querySelector('.material-symbols-outlined').textContent = isOpen ? 'close' : 'menu';
+  });
+  section.querySelector('.default-content').append(toggle);
 }
 
 function decorateNavSection(section) {
