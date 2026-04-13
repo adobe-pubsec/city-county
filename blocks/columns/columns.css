@@ -35,12 +35,6 @@
 
 /* ── Quick Links variant ─────────────────────────────────────── */
 
-/* Hero overlap — pull the card row up over the bottom of the hero */
-.section:has(.columns.quick-links) {
-  position: relative;
-  z-index: 3;
-  margin-top: -5.5rem;
-}
 
 /* Mobile: 2×2 grid — all 4 cards equal */
 .columns.quick-links .row {
