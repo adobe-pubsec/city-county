@@ -35,55 +35,22 @@
 
 /* ── Quick Links variant ─────────────────────────────────────── */
 
-/* Section overlap: pull cards up over the bottom of the hero */
+/* Hero overlap — pull the card row up over the bottom of the hero */
 .section:has(.columns.quick-links) {
   position: relative;
   z-index: 3;
-  margin-top: -3.5rem;
+  margin-top: -5.5rem;
 }
 
-/* Mobile: intro full-width, cards in 2-column grid */
+/* Mobile: 2×2 grid — all 4 cards equal */
 .columns.quick-links .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: var(--spacing-m);
 }
 
-.columns.quick-links .col-1 {
-  grid-column: 1 / -1; /* span both columns */
-  display: flex;
-  flex-direction: column;
-  padding-bottom: var(--spacing-l);
-  border-bottom: 1px solid var(--outline-variant);
-}
-
-/* Info icon from authoring (Material Symbol span) */
-.columns.quick-links .col-1 .material-symbols-outlined {
-  font-size: 2.5rem;
-  color: var(--secondary);
-  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
-  display: block;
-  margin-bottom: var(--spacing-s);
-}
-
-.columns.quick-links .col-1 h2 {
-  font-family: var(--font-heading-stack);
-  font-size: 2rem;
-  font-weight: 900;
-  letter-spacing: -0.03em;
-  color: var(--primary);
-  margin: 0 0 0.5rem;
-}
-
-.columns.quick-links .col-1 p {
-  font-family: var(--font-body-stack);
-  color: var(--on-surface-variant);
-  font-size: 0.9375rem;
-  margin: 0;
-}
-
-/* Service cards */
-.columns.quick-links .col:not(.col-1) {
+/* ── All cards share the same base card style ── */
+.columns.quick-links .col {
   background: var(--surface-container-lowest);
   border-radius: var(--radius-xl);
   padding: 1.25rem;
@@ -93,13 +60,13 @@
   transition: box-shadow 0.2s, transform 0.2s;
 }
 
-.columns.quick-links .col:not(.col-1):hover {
+.columns.quick-links .col:hover {
   box-shadow: 0 8px 24px -4px rgb(1 27 67 / 0.14), 0 2px 6px rgb(0 0 0 / 0.06);
   transform: translateY(-2px);
 }
 
-/* Icon chip */
-.columns.quick-links .col:not(.col-1) picture {
+/* ── Icon chip: SVG picture (col-2/3/4) ── */
+.columns.quick-links .col picture {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -111,12 +78,50 @@
   flex-shrink: 0;
 }
 
-.columns.quick-links .col:not(.col-1) img {
+.columns.quick-links .col img {
   width: 28px;
   height: 28px;
   object-fit: contain;
 }
 
+/* ── Icon chip: Material Symbol (col-1 authored span) ── */
+.columns.quick-links .col-1 p:has(.material-symbols-outlined) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  background: var(--secondary-container);
+  border-radius: var(--radius-xl);
+  margin-bottom: 0.875rem;
+  flex-shrink: 0;
+}
+
+.columns.quick-links .col-1 .material-symbols-outlined {
+  font-size: 1.625rem;
+  line-height: 1;
+  color: var(--secondary);
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+/* ── Intro col (col-1) text ── */
+.columns.quick-links .col-1 h2 {
+  font-family: var(--font-heading-stack);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin: 0 0 0.25rem;
+}
+
+.columns.quick-links .col-1 p:not(:has(.material-symbols-outlined)) {
+  font-family: var(--font-body-stack);
+  font-size: 0.8125rem;
+  color: var(--on-surface-variant);
+  margin: 0;
+  line-height: 1.45;
+}
+
+/* ── Service card (col-2/3/4) text ── */
 .columns.quick-links .col:not(.col-1) h3 {
   font-family: var(--font-heading-stack);
   font-size: 1rem;
@@ -125,7 +130,6 @@
   margin: 0 0 0.25rem;
 }
 
-/* Description — flex: 1 pushes CTA to bottom */
 .columns.quick-links .col:not(.col-1) p:not(:last-child) {
   font-family: var(--font-body-stack);
   font-size: 0.8125rem;
@@ -167,20 +171,13 @@
 
 /* ── Desktop ──────────────────────────────────────────────────── */
 @media (width >= 900px) {
-  /* Quick Links: intro col + 3 equal cards */
   .columns.quick-links .row {
-    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr 1fr;
     gap: var(--spacing-l);
     align-items: stretch;
   }
 
-  .columns.quick-links .col-1 {
-    grid-column: auto; /* reset mobile span */
-    border-bottom: none;
-    padding-bottom: 0;
-  }
-
-  /* Other columns variants */
+  /* Other column variants */
   .columns:not(.quick-links) .row {
     grid-template-columns: repeat(var(--child-count), 1fr);
   }
