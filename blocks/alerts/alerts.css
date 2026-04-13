@@ -1,0 +1,111 @@
+/* =============================================
+   ALERTS — section wrapper
+   ============================================= */
+
+/* Hoist the section above the fixed header */
+.section:has(.alerts) {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  margin: 0;
+  padding: 0;
+}
+
+/* Offset fixed header down by the alert bar height */
+header {
+  top: var(--alert-height, 0);
+}
+
+/* Extend body top padding to account for both header + alert bar */
+body {
+  padding-top: calc(var(--header-height) + var(--alert-height, 0));
+}
+
+/* =============================================
+   ALERTS — block
+   ============================================= */
+
+.alerts {
+  background-color: var(--tertiary);
+  color: #fff;
+  margin: 0;
+}
+
+.alerts.info  { background-color: var(--secondary); }
+.alerts.error { background-color: var(--error); }
+
+/* =============================================
+   ALERTS — individual alert item
+   ============================================= */
+
+.alert-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 2rem;
+  max-height: 120px;
+  overflow: hidden;
+  transition: max-height 0.25s ease, padding 0.25s ease, opacity 0.2s ease;
+}
+
+.alert-item.is-dismissed {
+  max-height: 0;
+  padding-block: 0;
+  opacity: 0;
+}
+
+.alert-content {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 0;
+}
+
+/* =============================================
+   ALERTS — icon
+   ============================================= */
+
+.alert-icon {
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  color: var(--tertiary-fixed);
+  flex-shrink: 0;
+}
+
+.alerts.info  .alert-icon { color: var(--secondary-fixed); }
+.alerts.error .alert-icon { color: #ffdad6; }
+
+/* =============================================
+   ALERTS — text
+   ============================================= */
+
+.alert-text {
+  font-size: 0.875rem;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  line-height: 1.4;
+}
+
+.alert-text p { margin: 0; }
+
+/* =============================================
+   ALERTS — close button
+   ============================================= */
+
+.alert-close {
+  display: flex;
+  align-items: center;
+  padding: 0;
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  flex-shrink: 0;
+  opacity: 1;
+  transition: opacity 0.15s;
+}
+
+.alert-close:hover { opacity: 0.75; }
+
+.alert-close .material-symbols-outlined { font-size: 1.125rem; }
