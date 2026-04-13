@@ -1,57 +1,31 @@
 .hero {
-  --gradient-start: rgb(var(--color-dark-base) / 80%);
-  --gradient-end: rgb(var(--color-dark-base) / 20%);
-  --default-min-height: 360px;
+  --gradient-start: rgba(1, 27, 67, 0.65);
+  --gradient-end:   rgba(1, 27, 67, 0.4);
+  --default-min-height: 600px;
   --min-height: var(--default-min-height);
 
   position: relative;
   color: #fff;
   overflow: hidden;
 
-  &.small {
-    --min-height: 180px;
-  }
+  /* ── Size variants ── */
+  &.small  { --min-height: 360px; }
+  &.large  { --min-height: 720px; }
+  &.full   { --min-height: calc(100vh - var(--header-height) - var(--alert-height, 0px)); }
 
-  &.large {
-    --min-height: 720px;
-  }
-
-  &.full {
-    --min-height: calc(100vh - var(--header-height));
-  }
-
+  /* ── Color variants ── */
   &.light {
-    --gradient-start: rgb(var(--color-light-base) / 80%);
+    --gradient-start: rgba(255, 255, 255, 0.8);
+    --gradient-end:   rgba(255, 255, 255, 0.2);
 
-    color: var(--color-dark);
+    color: var(--on-surface);
   }
 
   &.dark {
-    color: var(--color-light);
+    color: #fff;
   }
 
-  &.quiet-background {
-    .hero-background div::after {
-      content: '';
-      position: absolute;
-      inset: 0;
-      backdrop-filter: blur(200px);
-      mask-image: linear-gradient(to right bottom, rgb(0 0 0 / 80%) 40%, rgb(0 0 0 / 20%) 125%);
-    }
-  }
-
-  &.hero-text-start {
-    img {
-      object-position: 10% 50%;
-    }
-  }
-
-  &.hero-text-end {
-    img {
-      object-position: 90% 50%;
-    }
-  }
-
+  /* ── Background layer ── */
   .hero-background {
     picture {
       position: absolute;
@@ -66,7 +40,6 @@
     }
 
     > div {
-      /* Used for quiet-background */
       background-color: var(--color-background);
       position: absolute;
       inset: 0;
@@ -77,17 +50,38 @@
       width: 100%;
       height: 100%;
     }
+
+    /* Gradient overlay — always present at all breakpoints */
+    &::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, var(--gradient-start), var(--gradient-end));
+      z-index: 1;
+    }
   }
 
+  /* Quiet background blur effect */
+  &.quiet-background {
+    .hero-background div::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      backdrop-filter: blur(200px);
+      mask-image: linear-gradient(to right bottom, rgb(0 0 0 / 80%) 40%, rgb(0 0 0 / 20%) 125%);
+    }
+  }
+
+  /* ── Foreground layer ── */
   .hero-foreground {
     min-height: var(--min-height);
-    padding: var(--spacing-xxl) 0;
+    padding: var(--spacing-xxl) var(--container-pad);
     box-sizing: border-box;
     position: relative;
+    z-index: 2;
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    background: linear-gradient(90deg, var(--gradient-start) 0%, var(--gradient-end) 100%);
 
     p {
       margin: 8px 0;
@@ -98,62 +92,74 @@
       margin: 0 auto;
     }
 
-    div > *:first-child {
-      margin-top: 0;
-    }
+    div > *:first-child { margin-top: 0; }
+    div > *:last-child  { margin-bottom: 0; }
 
-    div > *:last-child {
-      margin-bottom: 0;
-    }
+    .hero-detail  { margin: 0; }
+    .hero-heading { margin: 0; }
+  }
 
-    .hero-detail {
-      margin: 0;
-    }
+  /* ── Hero heading ── */
+  .hero-heading {
+    font-family: var(--font-heading-stack);
+    font-size: 3rem;
+    font-weight: 900;
+    letter-spacing: -0.05em;
+    line-height: 1.1;
+    filter:
+      drop-shadow(0 10px 8px rgb(0 0 0 / 0.04))
+      drop-shadow(0 4px 3px rgb(0 0 0 / 0.1));
 
-    .hero-heading {
-      margin: 0;
+    /* <em> = accent color (Friendly by Nature) */
+    em {
+      font-style: normal;
+      color: var(--secondary-fixed);
     }
   }
 
-  &.stack {
-    .hero-background {
-      > div {
-        min-height: var(--default-min-height);
-        position: relative;
-      }
-    }
+  /* ── Focal point helpers ── */
+  &.hero-text-start img { object-position: 10% 50%; }
+  &.hero-text-end   img { object-position: 90% 50%; }
 
-    .hero-foreground {
-      background: #111;
-    }
-
-    &.light {
-      .hero-foreground {
-        background: #f9f9f9;
-      }
-    }
-
-    &.hero-text-start {
-      img {
-        object-position: 80% 50%;
-      }
-    }
-
-    &.hero-text-end {
-      img {
-        object-position: 20% 50%;
-      }
-    }
-  }
-
+  /* ── Center variant (default Harrisonburg layout) ── */
   &.center {
     .hero-foreground {
       justify-content: center;
       text-align: center;
     }
+
+    .fg-text {
+      max-width: 56rem;
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 2rem;
+      margin: 0 auto;
+    }
+  }
+
+  /* ── Stack variant ── */
+  &.stack {
+    .hero-background > div {
+      min-height: var(--default-min-height);
+      position: relative;
+    }
+
+    .hero-foreground {
+      background: var(--primary-container);
+    }
+
+    &.light .hero-foreground {
+      background: var(--surface-container-low);
+      color: var(--on-surface);
+    }
+
+    &.hero-text-start img { object-position: 80% 50%; }
+    &.hero-text-end   img { object-position: 20% 50%; }
   }
 }
 
+/* ── Desktop layout ── */
 @media (width >= 600px) {
   .hero {
     .hero-foreground {
@@ -162,7 +168,6 @@
       justify-content: space-between;
       max-width: var(--grid-container-width);
       margin: 0 auto;
-      background: unset;
 
       .fg-text {
         width: unset;
@@ -170,34 +175,23 @@
       }
     }
 
+    .hero-heading {
+      font-size: 4.5rem;
+    }
+
     &.center {
       .hero-foreground {
         display: flex;
+        max-width: 100%;
       }
     }
 
     &.stack {
-      .hero-background {
-        > div {
-          position: absolute;
-        }
-      }
+      .hero-background > div { position: absolute; }
+      .hero-foreground { background: unset; }
 
-      .hero-foreground {
-        background: unset;
-      }
-
-      &.hero-text-start {
-        img {
-          object-position: 0% 50%;
-        }
-      }
-
-      &.hero-text-end {
-        img {
-          object-position: 100% 50%;
-        }
-      }
+      &.hero-text-start img { object-position: 0% 50%; }
+      &.hero-text-end   img { object-position: 100% 50%; }
     }
   }
 }
@@ -209,17 +203,13 @@
 }
 
 @media (width >= 900px) {
-  .hero {
-    .hero-foreground {
-      grid-template-columns: 40% 40%;
-    }
+  .hero .hero-foreground {
+    grid-template-columns: 40% 40%;
   }
 }
 
 @media (width >= 1200px) {
-  .hero {
-    .hero-foreground {
-      grid-template-columns: 33% 33%;
-    }
+  .hero .hero-foreground {
+    grid-template-columns: 33% 33%;
   }
 }
