@@ -36,10 +36,11 @@
 /* ── Quick Links variant ─────────────────────────────────────── */
 
 
-/* Mobile: 2×2 grid — all 4 cards equal */
+/* Mobile: 2×2 grid — all 4 cards equal height */
 .columns.quick-links .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
+  align-items: stretch;
   gap: var(--spacing-m);
 }
 
@@ -93,6 +94,7 @@
   color: var(--on-surface-variant);
   margin: 0;
   line-height: 1.45;
+  flex: 1; /* match service cards so all cards fill height evenly */
 }
 
 /* ── Service card (col-2/3/4) text ── */
