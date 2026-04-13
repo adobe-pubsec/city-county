@@ -79,6 +79,121 @@
   }
 }
 
+/* ── Quick Links variant ── */
+.columns.quick-links {
+  /* ── Intro column ── */
+  .col-1 {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: var(--spacing-xl) 0;
+
+    h2 {
+      font-family: var(--font-heading-stack);
+      font-size: 2rem;
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: var(--primary);
+      margin: 0 0 0.5rem;
+    }
+
+    p {
+      font-family: var(--font-body-stack);
+      color: var(--on-surface-variant);
+      font-size: 0.9375rem;
+      margin: 0;
+    }
+  }
+
+  /* ── Service cards ── */
+  .col:not(.col-1) {
+    background: var(--surface-container-lowest);
+    border: 1px solid var(--outline-variant);
+    border-radius: var(--radius-xl);
+    padding: 1.5rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    transition: box-shadow 0.2s, border-color 0.2s;
+
+    &:hover {
+      border-color: var(--secondary);
+      box-shadow: 0 4px 16px -4px rgb(20 103 124 / 0.15);
+    }
+
+    /* Icon */
+    picture { display: block; }
+
+    img {
+      width: 48px;
+      height: 48px;
+      object-fit: contain;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Card title */
+    h3 {
+      font-family: var(--font-heading-stack);
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin: 0 0 0.25rem;
+    }
+
+    /* Card description */
+    p:not(:last-child) {
+      font-family: var(--font-body-stack);
+      font-size: 0.875rem;
+      color: var(--on-surface-variant);
+      margin: 0;
+      line-height: 1.4;
+      flex: 1;
+    }
+
+    /* CTA link row */
+    p:last-child {
+      margin: 0.75rem 0 0;
+
+      a {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-family: var(--font-body-stack);
+        font-size: 0.875rem;
+        font-weight: 700;
+        color: var(--secondary);
+        text-decoration: none;
+        transition: color 0.15s, gap 0.15s;
+
+        &::after {
+          content: 'arrow_forward';
+          font-family: 'Material Symbols Outlined';
+          font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+          font-size: 1rem;
+          line-height: 1;
+        }
+
+        &:hover {
+          color: var(--primary);
+          gap: 0.5rem;
+        }
+      }
+    }
+  }
+}
+
+/* ── Quick Links: mobile stack ── */
+.columns.quick-links .row {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-m);
+
+  .col-1 {
+    border-bottom: 1px solid var(--outline-variant);
+    padding-bottom: var(--spacing-l);
+  }
+}
+
 @media (width >= 900px) {
   .columns {
     .row {
@@ -96,6 +211,26 @@
     &.z-pattern {
       .row:nth-of-type(odd) .col-1 {
         order: 2;
+      }
+    }
+
+    /* ── Quick Links desktop ── */
+    &.quick-links {
+      .row {
+        /* Intro col narrower, cards fill remaining space */
+        grid-template-columns: 1.25fr repeat(calc(var(--child-count) - 1), 1fr);
+        gap: var(--spacing-l);
+        align-items: stretch;
+      }
+
+      .col-1 {
+        border-bottom: none;
+        padding: 0;
+      }
+
+      /* Cards equal height via stretch */
+      .col:not(.col-1) {
+        height: 100%;
       }
     }
   }
