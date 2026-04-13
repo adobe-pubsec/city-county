@@ -1,13 +1,37 @@
 const EVENTS_INDEX = '/events/query-index.json';
 const MAX_ITEMS = 5;
 
+const DEMO_EVENTS = [
+  {
+    path: '/events/city-council-meeting-may',
+    title: 'City Council Regular Meeting',
+    startDate: '2026-04-28',
+    startTime: '19:00',
+    location: 'City Hall Chambers',
+  },
+  {
+    path: '/events/parks-rec-workshop',
+    title: 'Parks & Recreation Community Workshop',
+    startDate: '2026-05-02',
+    startTime: '10:00',
+    location: 'Community Center',
+  },
+  {
+    path: '/events/farmers-market-opening',
+    title: 'Downtown Farmers Market — Season Opening',
+    startDate: '2026-05-10',
+    startTime: '08:00',
+    location: 'Court Square, Downtown',
+  },
+];
+
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 async function fetchEvents() {
   const resp = await fetch(EVENTS_INDEX);
-  if (!resp.ok) throw new Error(`Failed to load events index: ${resp.status}`);
+  if (!resp.ok) return DEMO_EVENTS;
   const json = await resp.json();
-  return json.data || [];
+  return (json.data && json.data.length) ? json.data : DEMO_EVENTS;
 }
 
 function parseDate(str) {
