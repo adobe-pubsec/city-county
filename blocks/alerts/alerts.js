@@ -6,16 +6,19 @@ function getVariant(el) {
   return 'warning';
 }
 
+function setOffset(px) {
+  document.documentElement.style.setProperty('--alert-height', `${px}px`);
+  const header = document.querySelector('header');
+  if (header) header.style.top = `${px}px`;
+}
+
 function updateHeight(section) {
-  document.documentElement.style.setProperty(
-    '--alert-height',
-    `${section.offsetHeight}px`,
-  );
+  setOffset(section.offsetHeight);
 }
 
 function clearAlerts(section) {
   section.remove();
-  document.documentElement.style.removeProperty('--alert-height');
+  setOffset(0);
 }
 
 function dismiss(item, key, el) {
