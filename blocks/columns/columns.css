@@ -24,69 +24,46 @@
     }
   }
 
-  &.gap-xs {
-    --columns-gap: var(--spacing-xs);
-  }
-
-  &.gap-s {
-    --columns-gap: var(--spacing-s);
-  }
-
-  &.gap-m {
-    --columns-gap: var(--spacing-m);
-  }
-
-  &.gap-l {
-    --columns-gap: var(--spacing-l);
-  }
-
-  &.gap-xl {
-    --columns-gap: var(--spacing-xl);
-  }
-
-  &.gap-xxl {
-    --columns-gap: var(--spacing-xxl);
-  }
+  &.gap-xs { --columns-gap: var(--spacing-xs); }
+  &.gap-s  { --columns-gap: var(--spacing-s); }
+  &.gap-m  { --columns-gap: var(--spacing-m); }
+  &.gap-l  { --columns-gap: var(--spacing-l); }
+  &.gap-xl { --columns-gap: var(--spacing-xl); }
+  &.gap-xxl { --columns-gap: var(--spacing-xxl); }
 
   &.image-cover {
     .cover-row {
-      .cover-content {
-        padding: var(--spacing-xxl);
-      }
-
+      .cover-content { padding: var(--spacing-xxl); }
       .cover-image {
         position: relative;
         padding-bottom: 100%;
-
-        picture {
-          position: absolute;
-          inset: 0;
-        }
-
-        img {
-          object-fit: cover;
-          width: 100%;
-          height: 100%;
-        }
+        picture { position: absolute; inset: 0; }
+        img { object-fit: cover; width: 100%; height: 100%; }
       }
     }
   }
 
-  &.align-top {
-    .row {
-      align-items: start;
-    }
-  }
+  &.align-top .row { align-items: start; }
 }
 
 /* ── Quick Links variant ── */
 .columns.quick-links {
+
   /* ── Intro column ── */
   .col-1 {
     display: flex;
     flex-direction: column;
     justify-content: center;
-    padding: var(--spacing-xl) 0;
+    padding: var(--spacing-l) 0;
+
+    /* Info icon */
+    .material-symbols-outlined {
+      font-size: 2.5rem;
+      color: var(--secondary);
+      font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 48;
+      display: block;
+      margin-bottom: var(--spacing-m);
+    }
 
     h2 {
       font-family: var(--font-heading-stack);
@@ -108,51 +85,58 @@
   /* ── Service cards ── */
   .col:not(.col-1) {
     background: var(--surface-container-lowest);
-    border: 1px solid var(--outline-variant);
     border-radius: var(--radius-xl);
     padding: 1.5rem;
     display: flex;
     flex-direction: column;
-    gap: 0.25rem;
-    transition: box-shadow 0.2s, border-color 0.2s;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.06), 0 1px 2px rgb(0 0 0 / 0.04);
+    transition: box-shadow 0.2s, transform 0.2s;
 
     &:hover {
-      border-color: var(--secondary);
-      box-shadow: 0 4px 16px -4px rgb(20 103 124 / 0.15);
+      box-shadow: 0 8px 24px -4px rgb(1 27 67 / 0.12), 0 2px 6px rgb(0 0 0 / 0.06);
+      transform: translateY(-2px);
     }
 
-    /* Icon */
-    picture { display: block; }
+    /* Icon chip — tinted background behind each icon */
+    picture {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 56px;
+      height: 56px;
+      background: var(--secondary-container);
+      border-radius: var(--radius-xl);
+      margin-bottom: 1rem;
+      flex-shrink: 0;
+    }
 
     img {
-      width: 48px;
-      height: 48px;
+      width: 28px;
+      height: 28px;
       object-fit: contain;
-      margin-bottom: 0.75rem;
     }
 
-    /* Card title */
     h3 {
       font-family: var(--font-heading-stack);
-      font-size: 1rem;
+      font-size: 1.0625rem;
       font-weight: 700;
       color: var(--primary);
-      margin: 0 0 0.25rem;
+      margin: 0 0 0.375rem;
     }
 
-    /* Card description */
+    /* Description */
     p:not(:last-child) {
       font-family: var(--font-body-stack);
       font-size: 0.875rem;
       color: var(--on-surface-variant);
       margin: 0;
-      line-height: 1.4;
+      line-height: 1.45;
       flex: 1;
     }
 
-    /* CTA link row */
+    /* CTA */
     p:last-child {
-      margin: 0.75rem 0 0;
+      margin: 1rem 0 0;
 
       a {
         display: inline-flex;
@@ -194,44 +178,36 @@
   }
 }
 
+/* ── Quick Links: desktop side-by-side ── */
 @media (width >= 900px) {
-  .columns {
+  .columns.quick-links .row {
+    display: grid;
+    grid-template-columns: 1.2fr 1fr 1fr 1fr;
+    gap: var(--spacing-l);
+    align-items: stretch;
+
+    .col-1 {
+      border-bottom: none;
+      padding: 0;
+    }
+  }
+}
+
+/* ── Other columns: desktop ── */
+@media (width >= 900px) {
+  .columns:not(.quick-links) {
     .row {
       grid-template-columns: repeat(var(--child-count), 1fr);
     }
 
     &.image-cover {
-      .cover-row {
-        .cover-content {
-          padding: 0 calc(var(--spacing-xxl) * 2);
-        }
+      .cover-row .cover-content {
+        padding: 0 calc(var(--spacing-xxl) * 2);
       }
     }
 
     &.z-pattern {
-      .row:nth-of-type(odd) .col-1 {
-        order: 2;
-      }
-    }
-
-    /* ── Quick Links desktop ── */
-    &.quick-links {
-      .row {
-        /* Intro col narrower, cards fill remaining space */
-        grid-template-columns: 1.25fr repeat(calc(var(--child-count) - 1), 1fr);
-        gap: var(--spacing-l);
-        align-items: stretch;
-      }
-
-      .col-1 {
-        border-bottom: none;
-        padding: 0;
-      }
-
-      /* Cards equal height via stretch */
-      .col:not(.col-1) {
-        height: 100%;
-      }
+      .row:nth-of-type(odd) .col-1 { order: 2; }
     }
   }
 }
