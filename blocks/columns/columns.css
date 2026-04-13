@@ -78,26 +78,6 @@
   object-fit: contain;
 }
 
-/* ── Icon chip: Material Symbol (col-1 authored span) ── */
-.columns.quick-links .col-1 p:has(.material-symbols-outlined) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 52px;
-  height: 52px;
-  background: var(--secondary-container);
-  border-radius: var(--radius-xl);
-  margin-bottom: 0.875rem;
-  flex-shrink: 0;
-}
-
-.columns.quick-links .col-1 .material-symbols-outlined {
-  font-size: 1.625rem;
-  line-height: 1;
-  color: var(--secondary);
-  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-}
-
 /* ── Intro col (col-1) text ── */
 .columns.quick-links .col-1 h2 {
   font-family: var(--font-heading-stack);
