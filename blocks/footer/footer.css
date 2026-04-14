@@ -34,7 +34,12 @@ footer {
 .footer-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: 0;
+}
+
+/* Space between brand block and first accordion item */
+.footer-brand {
+  margin-bottom: var(--spacing-l);
 }
 
 /* ── Brand column ── */
@@ -175,6 +180,10 @@ footer {
     grid-template-columns: 1.75fr 1fr 1fr 1fr 1fr;
     gap: var(--spacing-xxl);
     align-items: start;
+  }
+
+  .footer-brand {
+    margin-bottom: 0;
   }
 
   .footer-bottom {
