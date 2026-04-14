@@ -28,7 +28,7 @@ export default function init(el) {
       </div>
       <button type="submit" class="search-btn btn btn-primary">
         <span class="material-symbols-outlined" aria-hidden="true">search</span>
-        <span>Search</span>
+        <span class="search-btn-label">Search</span>
       </button>
     </div>
   `;
