@@ -7,12 +7,15 @@ function buildBrand(cell) {
   const brand = document.createElement('div');
   brand.className = 'footer-brand';
 
-  // City logo
+  // City logo (wrapped in white pill so it's legible on dark navy)
+  const logoWrap = document.createElement('div');
+  logoWrap.className = 'footer-logo-wrap';
   const logo = document.createElement('img');
   logo.src = '/img/harrisonburg-logo.png';
   logo.alt = 'City of Harrisonburg';
   logo.className = 'footer-logo';
-  brand.append(logo);
+  logoWrap.append(logo);
+  brand.append(logoWrap);
 
   // Retain the name, address, phone paragraphs
   [...cell.querySelectorAll('p')].forEach((p) => {
@@ -29,14 +32,24 @@ function buildCol(cell) {
 
   const heading = cell.querySelector('strong');
   if (heading) {
-    const h = document.createElement('p');
-    h.className = 'footer-col-heading';
-    h.textContent = heading.textContent.trim();
-    col.append(h);
+    const btn = document.createElement('button');
+    btn.className = 'footer-col-heading';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.textContent = heading.textContent.trim();
+    btn.addEventListener('click', () => {
+      const open = col.classList.toggle('is-open');
+      btn.setAttribute('aria-expanded', String(open));
+    });
+    col.append(btn);
   }
 
   const ul = cell.querySelector('ul');
-  if (ul) col.append(ul);
+  if (ul) {
+    const listWrap = document.createElement('div');
+    listWrap.className = 'footer-col-list';
+    listWrap.append(ul);
+    col.append(listWrap);
+  }
 
   return col;
 }

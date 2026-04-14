@@ -34,7 +34,12 @@ footer {
 .footer-nav {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-xl);
+  gap: 0;
+}
+
+/* Space between brand block and first accordion item */
+.footer-brand {
+  margin-bottom: var(--spacing-l);
 }
 
 /* ── Brand column ── */
@@ -44,12 +49,20 @@ footer {
   gap: var(--spacing-s);
 }
 
-.footer-logo {
-  height: 45px;
-  width: auto;
-  /* Invert to white */
-  filter: brightness(0) invert(1);
+.footer-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  background: #fff;
+  border-radius: var(--radius-xl);
+  padding: 0.5rem 0.75rem;
   margin-bottom: var(--spacing-xs);
+}
+
+.footer-logo {
+  width: 120px;
+  height: auto;
+  display: block;
 }
 
 .footer-brand-name {
@@ -72,23 +85,58 @@ footer {
 .footer-col {
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-s);
 }
 
 .footer-col-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: var(--spacing-m) 0;
+  border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
   font-family: var(--font-body-stack);
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--secondary-fixed);
-  margin-bottom: var(--spacing-xs);
+  cursor: pointer;
+  text-align: left;
+
+  /* Chevron via pseudo-element */
+  &::after {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 16px;
+    flex-shrink: 0;
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none'%3E%3Cpath d='M4 6l4 4 4-4' stroke='%23b5ebff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/contain no-repeat;
+    transition: transform 0.2s ease;
+  }
 }
 
-.footer-col ul {
+.footer-col.is-open .footer-col-heading::after {
+  transform: rotate(180deg);
+}
+
+/* Accordion list — collapsed by default on mobile */
+.footer-col-list {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.footer-col.is-open .footer-col-list {
+  max-height: 400px;
+}
+
+.footer-col-list ul {
   display: flex;
   flex-direction: column;
   gap: 0.625rem;
+  padding-bottom: var(--spacing-m);
 }
 
 .footer-col li a {
@@ -134,9 +182,37 @@ footer {
     align-items: start;
   }
 
+  .footer-brand {
+    margin-bottom: 0;
+  }
+
   .footer-bottom {
     flex-direction: row;
     align-items: center;
     justify-content: space-between;
+  }
+
+  /* Reset accordion — always expanded, no chevron, no border */
+  .footer-col {
+    gap: var(--spacing-s);
+  }
+
+  .footer-col-heading {
+    padding: 0;
+    border-top: none;
+    cursor: default;
+    pointer-events: none;
+    margin-bottom: var(--spacing-xs);
+
+    &::after { display: none; }
+  }
+
+  .footer-col-list {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .footer-col-list ul {
+    padding-bottom: 0;
   }
 }
