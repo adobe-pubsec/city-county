@@ -23,6 +23,13 @@ const DEMO_EVENTS = [
     startTime: '08:00',
     location: 'Court Square, Downtown',
   },
+  {
+    path: '/events/city-council-meeting-june',
+    title: 'City Council Regular Meeting',
+    startDate: '2026-06-28',
+    startTime: '19:00',
+    location: 'City Hall Chambers',
+  },
 ];
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
