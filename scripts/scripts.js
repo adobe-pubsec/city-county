@@ -36,6 +36,16 @@ const decorateArea = ({ area = document }) => {
 export async function loadPage() {
   setConfig({ hostnames, locales, linkBlocks, components, decorateArea });
   await loadArea();
+
+  // Load template JS if a template is specified (AK only loads template CSS)
+  const templateMeta = document.head.querySelector('meta[name="template"]');
+  if (templateMeta) {
+    const template = templateMeta.content.replaceAll(' ', '-').toLowerCase();
+    try {
+      const mod = await import(`../templates/${template}/${template}.js`);
+      if (mod.default) mod.default();
+    } catch { /* no JS for this template */ }
+  }
 }
 await loadPage();
 
