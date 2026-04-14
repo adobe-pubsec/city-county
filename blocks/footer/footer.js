@@ -3,27 +3,100 @@ import { loadFragment } from '../fragment/fragment.js';
 
 const FOOTER_PATH = '/fragments/nav/footer';
 
-/**
- * loads and decorates the footer
- * @param {Element} el The footer element
- */
+function buildBrand(cell) {
+  const brand = document.createElement('div');
+  brand.className = 'footer-brand';
+
+  // City logo
+  const logo = document.createElement('img');
+  logo.src = '/img/harrisonburg-logo.png';
+  logo.alt = 'City of Harrisonburg';
+  logo.className = 'footer-logo';
+  brand.append(logo);
+
+  // Retain the name, address, phone paragraphs
+  [...cell.querySelectorAll('p')].forEach((p) => {
+    p.className = p.querySelector('strong') ? 'footer-brand-name' : 'footer-brand-detail';
+    brand.append(p);
+  });
+
+  return brand;
+}
+
+function buildCol(cell) {
+  const col = document.createElement('div');
+  col.className = 'footer-col';
+
+  const heading = cell.querySelector('strong');
+  if (heading) {
+    const h = document.createElement('p');
+    h.className = 'footer-col-heading';
+    h.textContent = heading.textContent.trim();
+    col.append(h);
+  }
+
+  const ul = cell.querySelector('ul');
+  if (ul) col.append(ul);
+
+  return col;
+}
+
+function buildFooterNav(columnsBlock) {
+  const nav = document.createElement('div');
+  nav.className = 'footer-nav';
+
+  const cells = [...columnsBlock.querySelectorAll('.col')];
+  cells.forEach((cell, i) => {
+    nav.append(i === 0 ? buildBrand(cell) : buildCol(cell));
+  });
+
+  return nav;
+}
+
+function buildBottom(legal, copyright) {
+  const bottom = document.createElement('div');
+  bottom.className = 'footer-bottom';
+
+  // Copyright
+  const copy = document.createElement('p');
+  copy.className = 'footer-copyright';
+  copy.innerHTML = copyright?.querySelector('p')?.innerHTML || '';
+  bottom.append(copy);
+
+  // Legal links
+  const legalLinks = document.createElement('nav');
+  legalLinks.className = 'footer-legal';
+  legalLinks.setAttribute('aria-label', 'Legal');
+  const ul = legal?.querySelector('ul');
+  if (ul) legalLinks.append(ul);
+  bottom.append(legalLinks);
+
+  return bottom;
+}
+
 export default async function init(el) {
   const { locale } = getConfig();
   const footerMeta = getMetadata('footer');
   const path = footerMeta || FOOTER_PATH;
+
   try {
     const fragment = await loadFragment(`${locale.prefix}${path}`);
-    fragment.classList.add('footer-content');
+    const sections = [...fragment.querySelectorAll(':scope > .section')];
 
-    const sections = [...fragment.querySelectorAll('.section')];
-
+    // Last two sections are copyright and legal
     const copyright = sections.pop();
-    copyright.classList.add('section-copyright');
-
     const legal = sections.pop();
-    legal.classList.add('section-legal');
 
-    el.append(fragment);
+    // First section contains the columns footer-columns block
+    const columnsBlock = sections[0]?.querySelector('.columns');
+
+    const wrapper = document.createElement('div');
+    wrapper.className = 'footer-content';
+
+    if (columnsBlock) wrapper.append(buildFooterNav(columnsBlock));
+    wrapper.append(buildBottom(legal, copyright));
+
+    el.append(wrapper);
   } catch (e) {
     throw Error(e);
   }
