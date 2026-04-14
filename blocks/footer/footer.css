@@ -44,12 +44,19 @@ footer {
   gap: var(--spacing-s);
 }
 
-.footer-logo {
-  height: 45px;
-  width: auto;
-  /* Invert to white */
-  filter: brightness(0) invert(1);
+.footer-logo-wrap {
+  display: inline-flex;
+  align-items: center;
+  background: #fff;
+  border-radius: var(--radius-xl);
+  padding: 0.5rem 0.75rem;
   margin-bottom: var(--spacing-xs);
+}
+
+.footer-logo {
+  width: 120px;
+  height: auto;
+  display: block;
 }
 
 .footer-brand-name {
