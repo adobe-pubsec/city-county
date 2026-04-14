@@ -32,14 +32,24 @@ function buildCol(cell) {
 
   const heading = cell.querySelector('strong');
   if (heading) {
-    const h = document.createElement('p');
-    h.className = 'footer-col-heading';
-    h.textContent = heading.textContent.trim();
-    col.append(h);
+    const btn = document.createElement('button');
+    btn.className = 'footer-col-heading';
+    btn.setAttribute('aria-expanded', 'false');
+    btn.textContent = heading.textContent.trim();
+    btn.addEventListener('click', () => {
+      const open = col.classList.toggle('is-open');
+      btn.setAttribute('aria-expanded', String(open));
+    });
+    col.append(btn);
   }
 
   const ul = cell.querySelector('ul');
-  if (ul) col.append(ul);
+  if (ul) {
+    const listWrap = document.createElement('div');
+    listWrap.className = 'footer-col-list';
+    listWrap.append(ul);
+    col.append(listWrap);
+  }
 
   return col;
 }
