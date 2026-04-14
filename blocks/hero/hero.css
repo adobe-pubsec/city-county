@@ -104,16 +104,17 @@
     font-family: var(--font-heading-stack);
     font-size: 3rem;
     font-weight: 900;
-    letter-spacing: -0.05em;
+    letter-spacing: -0.01em;
     line-height: 1.1;
     filter:
       drop-shadow(0 10px 8px rgb(0 0 0 / 0.04))
       drop-shadow(0 4px 3px rgb(0 0 0 / 0.1));
 
-    /* <em> = accent color (Friendly by Nature) */
+    /* <em> = accent color + always on its own line */
     em {
       font-style: normal;
       color: var(--secondary-fixed);
+      display: block;
     }
   }
 

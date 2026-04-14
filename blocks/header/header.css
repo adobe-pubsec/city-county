@@ -348,11 +348,12 @@ header {
       }
     }
 
-    .main-nav-link {
+    .main-nav-link,
+    .main-nav-item > a {
       display: block;
-      padding: 1rem var(--container-pad);
+      padding: 1.25rem var(--container-pad);
       line-height: 1.5;
-      font-size: 1rem;
+      font-size: 1.0625rem;
       font-weight: 600;
       color: var(--primary);
     }
