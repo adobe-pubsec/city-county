@@ -49,6 +49,153 @@ export async function loadPage() {
 }
 await loadPage();
 
+
+/**
+ * Sa11y Accessibility Checker - Sidekick Toggle Plugin
+ * Injects/removes Sa11y when the Accessibility button is clicked.
+ * https://sa11y.netlify.app/
+ */
+const SA11Y_VERSION = '4';
+const SA11Y_CSS_URL = `https://cdn.jsdelivr.net/gh/ryersondmp/sa11y@${SA11Y_VERSION}/dist/css/sa11y.min.css`;
+const SA11Y_LANG_URL = `https://cdn.jsdelivr.net/gh/ryersondmp/sa11y@${SA11Y_VERSION}/dist/js/lang/en.umd.js`;
+const SA11Y_JS_URL = `https://cdn.jsdelivr.net/gh/ryersondmp/sa11y@${SA11Y_VERSION}/dist/js/sa11y.umd.min.js`;
+
+let sa11yActive = false;
+let sa11yLoaded = false;
+
+function injectCSS(url, id) {
+  return new Promise((resolve, reject) => {
+    if (document.getElementById(id)) { resolve(); return; }
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = url;
+    link.onload = resolve;
+    link.onerror = () => reject(new Error('Failed to load Sa11y CSS'));
+    document.head.appendChild(link);
+  });
+}
+
+function injectScript(url, id) {
+  return new Promise((resolve, reject) => {
+    if (document.getElementById(id)) { resolve(); return; }
+    const script = document.createElement('script');
+    script.id = id;
+    script.src = url;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error('Failed to load Sa11y script'));
+    document.head.appendChild(script);
+  });
+}
+
+async function loadSa11y() {
+  if (sa11yLoaded) return;
+
+  await injectCSS(SA11Y_CSS_URL, 'sa11y-injected-styles');
+  await injectScript(SA11Y_LANG_URL, 'sa11y-lang-script');
+  await new Promise((r) => { setTimeout(r, 100); });
+  await injectScript(SA11Y_JS_URL, 'sa11y-main-script');
+
+  // Wait for Sa11y to be available
+  await new Promise((resolve, reject) => {
+    let attempts = 0;
+    const check = () => {
+      attempts += 1;
+      if (window.Sa11y && window.Sa11yLangEn) resolve();
+      else if (attempts > 50) reject(new Error('Sa11y load timeout'));
+      else setTimeout(check, 100);
+    };
+    check();
+  });
+
+  window.Sa11y.Lang.addI18n(window.Sa11yLangEn.strings);
+  sa11yLoaded = true;
+}
+
+async function startSa11y() {
+  if (sa11yActive) return;
+
+  try {
+    await loadSa11y();
+
+    window.sa11yInstance = new window.Sa11y.Sa11y({
+      checkRoot: 'main, [role="main"], .main-content, body',
+      containerIgnore: '.sidekick-library, .hlx-sk, #hlx-sk, [data-aue-type], .aue-edit',
+      showGoodLinkButton: true,
+      showHinPageOutline: true,
+      detectPageLanguage: true,
+      panelPosition: 'left',
+    });
+
+    sa11yActive = true;
+    // eslint-disable-next-line no-console
+    console.log('[Sa11y] Started');
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[Sa11y] Error starting:', error);
+  }
+}
+
+function stopSa11y() {
+  if (!sa11yActive) return;
+
+  try {
+    if (window.sa11yInstance) {
+      try { window.sa11yInstance.destroy(); } catch (e) { /* ignore */ }
+      delete window.sa11yInstance;
+    }
+
+    // Remove Sa11y UI elements (keep scripts/styles loaded for re-use)
+    [
+      '#sa11y-container', '#sa11y-panel', '#sa11y-toast-container',
+      '#sa11y-control-panel', '.sa11y-annotation', '.sa11y-instance',
+    ].forEach((sel) => {
+      document.querySelectorAll(sel).forEach((el) => {
+        try { el.remove(); } catch (e) { /* ignore */ }
+      });
+    });
+
+    // Remove Sa11y custom elements (web components with shadow DOM)
+    [
+      'sa11y-control-panel', 'sa11y-panel', 'sa11y-annotation',
+      'sa11y-heading-label', 'sa11y-heading-anchor', 'sa11y-tooltips',
+    ].forEach((tagName) => {
+      document.querySelectorAll(tagName).forEach((el) => {
+        try { el.remove(); } catch (e) { /* ignore */ }
+      });
+    });
+
+    sa11yActive = false;
+    // eslint-disable-next-line no-console
+    console.log('[Sa11y] Stopped');
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[Sa11y] Error stopping:', error);
+  }
+}
+
+function toggleSa11y() {
+  if (sa11yActive) {
+    stopSa11y();
+  } else {
+    startSa11y();
+  }
+}
+
+// Listen for sidekick sa11y event
+function initSa11ySidekick() {
+  const sk = document.querySelector('aem-sidekick');
+  if (sk) {
+    sk.addEventListener('custom:sa11y', toggleSa11y);
+  } else {
+    document.addEventListener('sidekick-ready', () => {
+      document.querySelector('aem-sidekick')?.addEventListener('custom:sa11y', toggleSa11y);
+    }, { once: true });
+  }
+}
+
+initSa11ySidekick();
+
 (function da() {
   const { searchParams } = new URL(window.location.href);
   const hasPreview = searchParams.has('dapreview');
