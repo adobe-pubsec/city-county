@@ -2,7 +2,9 @@ import { getConfig, getMetadata } from '../../scripts/ak.js';
 import { loadFragment } from '../fragment/fragment.js';
 import { setColorScheme } from '../section-metadata/section-metadata.js';
 
-const { locale } = getConfig();
+const { locale, locales: siteLocales } = getConfig();
+// Derived from scripts.js locales config — add/remove locales there, not here
+const LOCALE_PREFIXES = Object.keys(siteLocales).filter((p) => p !== '');
 
 const HEADER_PATH = '/fragments/nav/header';
 const HEADER_ACTIONS = [
@@ -35,8 +37,6 @@ function toggleMenu(menu) {
   document.addEventListener('click', docClose);
   menu.classList.add('is-open');
 }
-
-const LOCALE_PREFIXES = ['/de', '/es', '/fr', '/hi', '/ja', '/zh'];
 
 function getBasePath() {
   const { pathname } = window.location;
