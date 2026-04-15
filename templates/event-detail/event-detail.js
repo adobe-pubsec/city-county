@@ -127,18 +127,23 @@ function buildAutoHero() {
   const main = document.querySelector('main');
   if (!main) return;
 
-  // Find the first picture that is not inside a block
-  const pic = [...main.querySelectorAll('picture')].find(
+  // Prefer <picture>, fall back to standalone <img> not inside a block or picture
+  let target = [...main.querySelectorAll('picture')].find(
     (p) => !p.closest('.block'),
   );
-  if (!pic) return;
+  if (!target) {
+    target = [...main.querySelectorAll('img:not(picture img)')].find(
+      (img) => !img.closest('.block'),
+    );
+  }
+  if (!target) return;
 
   // Capture parent references BEFORE moving the element
-  const parentP = pic.parentElement?.tagName === 'P' ? pic.parentElement : null;
-  const sectionDiv = parentP?.closest('main > div') ?? pic.closest('main > div');
+  const parentP = target.parentElement?.tagName === 'P' ? target.parentElement : null;
+  const sectionDiv = parentP?.closest('main > div') ?? target.closest('main > div');
 
   // Boost as LCP candidate
-  const img = pic.querySelector('img');
+  const img = target.tagName === 'IMG' ? target : target.querySelector('img');
   if (img) {
     img.removeAttribute('loading');
     img.fetchPriority = 'high';
@@ -147,7 +152,7 @@ function buildAutoHero() {
   // Wrap in hero container and prepend to main
   const heroWrap = document.createElement('div');
   heroWrap.className = 'event-auto-hero';
-  heroWrap.append(pic);
+  heroWrap.append(target);
   main.prepend(heroWrap);
 
   // Clean up the now-empty paragraph; remove section if fully empty
