@@ -150,8 +150,11 @@ function buildAutoHero() {
   }
 
   // Wrap in hero container and prepend to main
+  // Must set display explicitly — styles.css hides all main > div by default
+  // and loadArea() has already run by the time the template init fires.
   const heroWrap = document.createElement('div');
   heroWrap.className = 'event-auto-hero';
+  heroWrap.style.display = 'block';
   heroWrap.append(target);
   main.prepend(heroWrap);
 
