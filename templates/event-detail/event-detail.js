@@ -133,6 +133,10 @@ function buildAutoHero() {
   );
   if (!pic) return;
 
+  // Capture parent references BEFORE moving the element
+  const parentP = pic.parentElement?.tagName === 'P' ? pic.parentElement : null;
+  const sectionDiv = parentP?.closest('main > div') ?? pic.closest('main > div');
+
   // Boost as LCP candidate
   const img = pic.querySelector('img');
   if (img) {
@@ -140,20 +144,17 @@ function buildAutoHero() {
     img.fetchPriority = 'high';
   }
 
-  // Wrap in hero container
+  // Wrap in hero container and prepend to main
   const heroWrap = document.createElement('div');
   heroWrap.className = 'event-auto-hero';
   heroWrap.append(pic);
+  main.prepend(heroWrap);
 
-  // Remove the now-empty paragraph (and its section if it becomes empty)
-  const p = pic.parentElement?.tagName === 'P' ? pic.parentElement : null;
-  const sectionDiv = p?.closest('main > div');
-  if (p) p.remove();
-  if (sectionDiv && !sectionDiv.textContent.trim() && !sectionDiv.querySelector(':not(script)')) {
+  // Clean up the now-empty paragraph; remove section if fully empty
+  if (parentP) parentP.remove();
+  if (sectionDiv && !sectionDiv.textContent.trim() && !sectionDiv.querySelector('img, picture, iframe')) {
     sectionDiv.remove();
   }
-
-  main.prepend(heroWrap);
 }
 
 export default function init() {
