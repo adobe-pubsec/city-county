@@ -60,7 +60,7 @@ function buildByline() {
     try {
       // MM-DD-YYYY → YYYY-MM-DD for Date parsing
       const normalized = raw.match(/^\d{2}-\d{2}-\d{4}$/)
-        ? raw.split('-').reverse().join('-')
+        ? (() => { const [mm, dd, yyyy] = raw.split('-'); return `${yyyy}-${mm}-${dd}`; })()
         : raw;
       date.textContent = new Date(normalized).toLocaleDateString('en-US', {
         month: 'long', day: 'numeric', year: 'numeric',

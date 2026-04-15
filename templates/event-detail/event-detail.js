@@ -39,7 +39,7 @@ function formatDate(raw) {
   try {
     // Accepts YYYY-MM-DD or MM-DD-YYYY
     const normalized = raw.match(/^\d{2}-\d{2}-\d{4}$/)
-      ? raw.split('-').reverse().join('-')
+      ? (() => { const [mm, dd, yyyy] = raw.split('-'); return `${yyyy}-${mm}-${dd}`; })()
       : raw;
     return new Date(`${normalized}T00:00:00`).toLocaleDateString('en-US', {
       weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
