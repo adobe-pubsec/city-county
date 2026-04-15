@@ -2,7 +2,9 @@ import { getConfig, getMetadata } from '../../scripts/ak.js';
 import { loadFragment } from '../fragment/fragment.js';
 import { setColorScheme } from '../section-metadata/section-metadata.js';
 
-const { locale } = getConfig();
+const { locale, locales: siteLocales } = getConfig();
+// Derived from scripts.js locales config — add/remove locales there, not here
+const LOCALE_PREFIXES = Object.keys(siteLocales).filter((p) => p !== '');
 
 const HEADER_PATH = '/fragments/nav/header';
 const HEADER_ACTIONS = [
@@ -36,20 +38,64 @@ function toggleMenu(menu) {
   menu.classList.add('is-open');
 }
 
+function getBasePath() {
+  const { pathname } = window.location;
+  for (const prefix of LOCALE_PREFIXES) {
+    if (pathname === prefix || pathname.startsWith(`${prefix}/`)) {
+      return { basePath: pathname.slice(prefix.length) || '/', activePrefix: prefix };
+    }
+  }
+  return { basePath: pathname, activePrefix: '' };
+}
+
+async function buildLanguageMenu(section) {
+  let menu = section.querySelector('.language.menu');
+  if (menu) return menu;
+
+  // Always load the base (English) languages fragment
+  const fragment = await loadFragment(`${HEADER_PATH}/languages`);
+
+  // Make each link point to the current page in its locale
+  const { basePath, activePrefix } = getBasePath();
+  fragment.querySelectorAll('a[href]').forEach((a) => {
+    const raw = a.getAttribute('href');
+    const linkPrefix = raw === '/' ? '' : raw.replace(/\/$/, '');
+    a.href = linkPrefix + basePath;
+    if (linkPrefix === activePrefix) {
+      a.setAttribute('aria-current', 'true');
+    }
+  });
+
+  const content = document.createElement('div');
+  content.className = 'block-content';
+  menu = document.createElement('div');
+  menu.className = 'language menu';
+  menu.append(fragment);
+  content.append(menu);
+  section.append(content);
+  return menu;
+}
+
 function decorateLanguage(btn) {
   const section = btn.closest('.section');
   btn.addEventListener('click', async () => {
-    let menu = section.querySelector('.language.menu');
-    if (!menu) {
-      const content = document.createElement('div');
-      content.classList.add('block-content');
-      const fragment = await loadFragment(`${locale.prefix}${HEADER_PATH}/languages`);
-      menu = document.createElement('div');
-      menu.className = 'language menu';
-      menu.append(fragment);
-      content.append(menu);
-      section.append(content);
-    }
+    await buildLanguageMenu(section);
+    toggleMenu(section);
+  });
+}
+
+function decorateLanguageLink(section) {
+  // Handles plain <a> language links (not action-wrapper buttons)
+  const link = [...section.querySelectorAll('a')].find(
+    (a) => /language/i.test(a.textContent.trim()),
+  );
+  if (!link) return;
+  // Already handled by decorateAction (action-wrapper)
+  if (link.closest('.action-wrapper')) return;
+
+  link.addEventListener('click', async (e) => {
+    e.preventDefault();
+    await buildLanguageMenu(section);
     toggleMenu(section);
   });
 }
@@ -196,6 +242,7 @@ function decorateNavSection(section) {
 
 async function decorateActionSection(section) {
   section.classList.add('actions-section');
+  decorateLanguageLink(section);
 }
 
 async function decorateHeader(fragment) {
