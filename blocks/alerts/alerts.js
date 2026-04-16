@@ -72,6 +72,7 @@ export default function init(el) {
 
   // Hoist section to top of body so it sits above the fixed header
   const section = el.closest('.section');
+  section.classList.add('full-width', 'alert-banner');
   document.body.prepend(section);
   updateHeight(section);
 
