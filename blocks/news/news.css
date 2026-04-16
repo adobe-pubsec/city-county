@@ -180,15 +180,15 @@
 }
 
 /* ── News + Events two-column section layout ── */
-/* AK's groupChildren() wraps sibling blocks in .block-content */
-.news-events-section .block-content {
+/* Auto-triggers whenever .news and .events-calendar share a section — no class needed */
+.section:has(.news):has(.events-calendar) .block-content {
   display: grid;
   grid-template-columns: 1fr;
   gap: var(--spacing-xxl);
 }
 
 @media (width >= 900px) {
-  .news-events-section .block-content {
+  .section:has(.news):has(.events-calendar) .block-content {
     grid-template-columns: 3fr 2fr;
     align-items: start;
   }
