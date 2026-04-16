@@ -1,4 +1,4 @@
-import { getConfig } from '../../scripts/ak.js';
+import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -27,13 +27,12 @@ function imageUrl(raw) {
   return `https://content.da.live${raw}`;
 }
 
-async function fetchNews(localePrefix) {
-  const resp = await fetch('/query-index.json');
+async function fetchNews() {
+  const url = await resolveIndexUrl('news');
+  const resp = await fetch(url);
   if (!resp.ok) throw new Error('index unavailable');
   const { data = [] } = await resp.json();
-  const prefix = `${localePrefix}/news/`;
   return data
-    .filter((item) => item.path.startsWith(prefix))
     .sort((a, b) => {
       const toMs = (s) => {
         if (!s) return 0;
@@ -138,9 +137,6 @@ function buildPagination(current, total, onNav) {
 }
 
 export default async function init(el) {
-  const { locale } = getConfig();
-  const localePrefix = locale.prefix || '';
-
   el.innerHTML = '';
   const status = document.createElement('p');
   status.className = 'nl-status';
@@ -149,7 +145,7 @@ export default async function init(el) {
 
   let allNews;
   try {
-    allNews = await fetchNews(localePrefix);
+    allNews = await fetchNews();
   } catch {
     status.textContent = 'News is temporarily unavailable.';
     return;

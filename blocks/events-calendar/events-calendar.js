@@ -1,4 +1,4 @@
-const EVENTS_INDEX = '/events/query-index.json';
+import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
 const MAX_ITEMS = 5;
 
 const DEMO_EVENTS = [
@@ -35,7 +35,8 @@ const DEMO_EVENTS = [
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 async function fetchEvents() {
-  const resp = await fetch(EVENTS_INDEX);
+  const url = await resolveIndexUrl('events');
+  const resp = await fetch(url);
   if (!resp.ok) return DEMO_EVENTS;
   const json = await resp.json();
   return (json.data && json.data.length) ? json.data : DEMO_EVENTS;
