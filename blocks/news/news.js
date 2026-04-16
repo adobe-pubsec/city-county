@@ -1,4 +1,5 @@
-const NEWS_INDEX = '/news/query-index.json';
+import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
+
 const MAX_ITEMS = 3;
 
 const DEMO_NEWS = [
@@ -29,7 +30,8 @@ const DEMO_NEWS = [
 ];
 
 async function fetchNews() {
-  const resp = await fetch(NEWS_INDEX);
+  const url = await resolveIndexUrl('news');
+  const resp = await fetch(url);
   if (!resp.ok) return DEMO_NEWS;
   const json = await resp.json();
   return (json.data && json.data.length) ? json.data : DEMO_NEWS;
