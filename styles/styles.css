@@ -300,75 +300,99 @@ a {
     color: light-dark(var(--color-dark), var(--color-light));
   }
 
-  &.grid-2 {
+  /*
+   * Some pipelines resolve Section Metadata server-side and leave only
+   * data-* attributes (e.g. data-spacing="l") instead of the classes the
+   * section-metadata block would normally add (e.g. spacing-l) — the
+   * [data-x="y"] selectors below cover that case.
+   */
+  &.grid-2,
+  &[data-grid="2"] {
     --grid-size: 2;
   }
 
-  &.grid-3 {
+  &.grid-3,
+  &[data-grid="3"] {
     --grid-size: 3;
   }
 
-  &.grid-4 {
+  &.grid-4,
+  &[data-grid="4"] {
     --grid-size: 4;
   }
 
-  &.grid-5 {
+  &.grid-5,
+  &[data-grid="5"] {
     --grid-size: 5;
   }
 
-  &.grid-6 {
+  &.grid-6,
+  &[data-grid="6"] {
     --grid-size: 6;
   }
 
-  &.gap-xs {
+  &.gap-xs,
+  &[data-gap="xs"] {
     --gap-spacing: var(--spacing-xs);
   }
 
-  &.gap-s {
+  &.gap-s,
+  &[data-gap="s"] {
     --gap-spacing: var(--spacing-s);
   }
 
-  &.gap-m {
+  &.gap-m,
+  &[data-gap="m"] {
     --gap-spacing: var(--spacing-m);
   }
 
-  &.gap-l {
+  &.gap-l,
+  &[data-gap="l"] {
     --gap-spacing: var(--spacing-l);
   }
 
-  &.gap-xl {
+  &.gap-xl,
+  &[data-gap="xl"] {
     --gap-spacing: var(--spacing-xl);
   }
 
-  &.gap-xxl {
+  &.gap-xxl,
+  &[data-gap="xxl"] {
     --gap-spacing: var(--spacing-xxl);
   }
 
-  &.spacing-xs {
+  &.spacing-xs,
+  &[data-spacing="xs"] {
     --top-bottom-spacing: calc(var(--spacing-xs) * 2);
   }
 
-  &.spacing-s {
+  &.spacing-s,
+  &[data-spacing="s"] {
     --top-bottom-spacing: calc(var(--spacing-s) * 2);
   }
 
-  &.spacing-m {
+  &.spacing-m,
+  &[data-spacing="m"] {
     --top-bottom-spacing: calc(var(--spacing-m) * 2);
   }
 
-  &.spacing-l {
+  &.spacing-l,
+  &[data-spacing="l"] {
     --top-bottom-spacing: calc(var(--spacing-l) * 2);
   }
 
-  &.spacing-xl {
+  &.spacing-xl,
+  &[data-spacing="xl"] {
     --top-bottom-spacing: calc(var(--spacing-xl) * 2);
   }
 
-  &.spacing-xxl {
+  &.spacing-xxl,
+  &[data-spacing="xxl"] {
     --top-bottom-spacing: calc(var(--spacing-xxl) * 2);
   }
 
-  &.grid .block-content {
+  &.grid .block-content,
+  &[data-grid]:not([data-grid="0"]) .block-content {
     display: grid;
     gap: var(--gap-spacing);
   }
@@ -436,7 +460,8 @@ a {
   }
 
   /* Pre-defined layouts */
-  &.layout-bento {
+  &.layout-bento,
+  &[data-layout="bento"] {
     .block-content {
       --grid-container-width: 83.4%;
 
@@ -521,7 +546,8 @@ svg {
 
 @media (width >= 600px) {
   .section {
-    &.grid-2 .block-content {
+    &.grid-2 .block-content,
+    &[data-grid="2"] .block-content {
       display: grid;
       grid-template-columns: repeat(var(--grid-size), 1fr);
     }
@@ -531,7 +557,9 @@ svg {
 @media (width >= 900px) {
   .section {
     &.grid-4 .block-content,
-    &.grid-6 .block-content {
+    &.grid-6 .block-content,
+    &[data-grid="4"] .block-content,
+    &[data-grid="6"] .block-content {
       display: grid;
       grid-template-columns: repeat(calc(var(--grid-size) / 2), 1fr);
     }
@@ -555,7 +583,8 @@ svg {
     }
   }
 
-  .section.layout-bento {
+  .section.layout-bento,
+  .section[data-layout="bento"] {
     .block-content {
       grid-template-columns: repeat(3, 1fr);
       grid-template-areas:
@@ -596,7 +625,8 @@ svg {
 }
 
 @media (width >= 1200px) {
-  .section.grid .block-content {
+  .section.grid .block-content,
+  .section[data-grid]:not([data-grid="0"]) .block-content {
     display: grid;
     grid-template-columns: repeat(var(--grid-size), 1fr);
   }
