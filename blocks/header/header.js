@@ -187,17 +187,9 @@ function decorateBrandSection(section) {
   section.classList.add('brand-section');
   const brandLink = section.querySelector('a');
 
-  // Replace any existing icon with the city logo
-  const existingIcon = brandLink.querySelector('img, svg, .icon');
-  const logo = document.createElement('img');
-  logo.src = '/img/harrisonburg-logo.png';
-  logo.alt = 'City of Harrisonburg';
-  logo.className = 'brand-logo';
-  if (existingIcon) {
-    existingIcon.replaceWith(logo);
-  } else {
-    brandLink.prepend(logo);
-  }
+  // Use the logo provided in the content, if any
+  const logo = brandLink.querySelector('img, svg');
+  if (logo) logo.classList.add('brand-logo');
 
   // Wrap remaining text node as brand-text
   const textNode = [...brandLink.childNodes].find((n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim());
