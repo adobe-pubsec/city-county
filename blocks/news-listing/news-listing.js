@@ -48,16 +48,17 @@ async function fetchNews() {
 function buildCard(item) {
   const title = item.title || slugToTitle(item.path);
   const date = formatDate(item.date);
-  const img = imageUrl(item.image);
+  const isPlaceholder = item.image?.startsWith('/default-meta-image.png');
+  const img = isPlaceholder ? null : imageUrl(item.image);
 
   const card = document.createElement('a');
   card.className = 'nl-card';
   card.href = item.path;
 
-  if (img) {
+  if (img || isPlaceholder) {
     const imgWrap = document.createElement('div');
     imgWrap.className = 'nl-card-img';
-    imgWrap.innerHTML = `<img src="${img}" alt="${title}" loading="lazy">`;
+    if (img) imgWrap.innerHTML = `<img src="${img}" alt="${title}" loading="lazy">`;
     card.append(imgWrap);
   }
 
