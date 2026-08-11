@@ -7,15 +7,17 @@ function buildBrand(cell) {
   const brand = document.createElement('div');
   brand.className = 'footer-brand';
 
-  // City logo (wrapped in white pill so it's legible on dark navy)
-  const logoWrap = document.createElement('div');
-  logoWrap.className = 'footer-logo-wrap';
-  const logo = document.createElement('img');
-  logo.src = '/img/harrisonburg-logo.png';
-  logo.alt = 'City of Harrisonburg';
-  logo.className = 'footer-logo';
-  logoWrap.append(logo);
-  brand.append(logoWrap);
+  // Logo provided in the content (wrapped in white pill so it's legible on dark navy)
+  const picture = cell.querySelector('picture');
+  if (picture) {
+    const picP = picture.closest('p');
+    const logoWrap = document.createElement('div');
+    logoWrap.className = 'footer-logo-wrap';
+    picture.querySelector('img')?.classList.add('footer-logo');
+    logoWrap.append(picture);
+    brand.append(logoWrap);
+    picP?.remove();
+  }
 
   // Retain the name, address, phone paragraphs
   [...cell.querySelectorAll('p')].forEach((p) => {

@@ -34,7 +34,28 @@ function buildBreadcrumbs() {
   document.querySelector('main')?.before(nav);
 }
 
-function buildByline() {
+function buildHero() {
+  const container = document.querySelector('.news-article-template main > div:first-child > .default-content');
+  const h1 = container?.querySelector('h1');
+  const picP = container?.querySelector(':scope > p:first-child:has(picture)');
+  if (!container || !h1 || !picP) return null;
+
+  const hero = document.createElement('div');
+  hero.className = 'article-hero';
+
+  const gradient = document.createElement('div');
+  gradient.className = 'article-hero-gradient';
+
+  const titleWrap = document.createElement('div');
+  titleWrap.className = 'article-hero-title';
+  titleWrap.append(h1);
+
+  hero.append(picP.querySelector('picture'), gradient, titleWrap);
+  picP.replaceWith(hero);
+  return hero;
+}
+
+function buildByline(anchor) {
   const h1 = document.querySelector('main h1');
   if (!h1) return;
 
@@ -71,10 +92,11 @@ function buildByline() {
     byline.append(date);
   }
 
-  h1.after(byline);
+  (anchor || h1).after(byline);
 }
 
 export default function init() {
   buildBreadcrumbs();
-  buildByline();
+  const hero = buildHero();
+  buildByline(hero);
 }

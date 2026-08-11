@@ -47,32 +47,51 @@
   }
 }
 
-/* ── Hero: full-width banner ── */
-.news-article-template .hero {
-  /* override AK grid layout */
-  .hero-foreground {
-    display: block;
-    min-height: 0;
-    padding: 0;
-    max-width: 100%;
-    margin: 0;
+/* ── Lead image: full-width banner with title overlay ── */
+.news-article-template .default-content > .article-hero {
+  /* beat .section > .default-content > *:first-child { margin-top: 0 } */
+  margin: var(--spacing-xl) 0;
+}
 
-    picture {
+.article-hero {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--radius-2xl);
+
+  picture {
+    display: block;
+    width: 100%;
+    aspect-ratio: 21 / 8;
+    overflow: hidden;
+
+    img {
       display: block;
       width: 100%;
-      aspect-ratio: 21 / 8;
-      overflow: hidden;
-      position: static;
-
-      img {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        object-position: center 30%;
-      }
+      height: 100%;
+      object-fit: cover;
+      object-position: center 30%;
     }
   }
+}
+
+.article-hero-gradient {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top right, var(--primary) 0%, transparent 65%);
+  pointer-events: none;
+}
+
+.article-hero-title {
+  position: absolute;
+  z-index: 1;
+  inset: auto 0 0 0;
+  padding: var(--spacing-xl) var(--container-pad) var(--spacing-l);
+}
+
+.news-article-template .article-hero-title h1 {
+  max-width: 80%;
+  color: #fff;
+  margin: 0;
 }
 
 /* ── Article body container ── */
