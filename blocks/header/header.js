@@ -187,8 +187,14 @@ function decorateBrandSection(section) {
   section.classList.add('brand-section');
   const brandLink = section.querySelector('a');
 
-  // Use the logo provided in the content, if any
-  const logo = brandLink.querySelector('img, svg');
+  // Use the logo provided in the content, if any. It's expected inside the
+  // brand link (so header.css's link-scoped sizing applies), but authors may
+  // place it as a sibling instead — move it into the link if so.
+  let logo = brandLink.querySelector('img, svg');
+  if (!logo) {
+    logo = section.querySelector('img, svg');
+    if (logo) brandLink.prepend(logo);
+  }
   if (logo) logo.classList.add('brand-logo');
 
   // Wrap remaining text node as brand-text

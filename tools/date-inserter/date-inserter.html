@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Date Inserter</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="https://use.typekit.net/uma8ayv.css">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: adobe-clean, sans-serif;
+      background: #f5f5f5;
+      padding: 12px;
+    }
+
+    .date-inserter {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: #6e6e6e;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
+    }
+
+    /* Quick insert today section */
+    .quick-insert {
+      background: #fff;
+      border: 1px solid #d3d3d3;
+      border-radius: 4px;
+      padding: 12px;
+    }
+
+    .today-date {
+      display: block;
+      font-size: 18px;
+      font-weight: 600;
+      color: #323232;
+      margin-bottom: 10px;
+    }
+
+    .insert-today-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      background: #0265dc;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .insert-today-btn:hover {
+      background: #0054b6;
+    }
+
+    .insert-today-btn:active {
+      background: #004491;
+    }
+
+    .insert-today-btn svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    /* Divider */
+    .divider {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: #6e6e6e;
+      font-size: 11px;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: #d3d3d3;
+    }
+
+    /* Custom date picker section */
+    .custom-date {
+      background: #fff;
+      border: 1px solid #d3d3d3;
+      border-radius: 4px;
+      padding: 12px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .date-input {
+      flex: 1;
+      padding: 10px;
+      font-size: 14px;
+      font-family: adobe-clean, sans-serif;
+      border: 1px solid #d3d3d3;
+      border-radius: 4px;
+      color: #323232;
+      min-width: 0;
+    }
+
+    .time-input {
+      width: 90px;
+      padding: 10px;
+      font-size: 14px;
+      font-family: adobe-clean, sans-serif;
+      border: 1px solid #d3d3d3;
+      border-radius: 4px;
+      color: #323232;
+    }
+
+    .date-input:focus,
+    .time-input:focus {
+      outline: none;
+      border-color: #0265dc;
+      box-shadow: 0 0 0 1px #0265dc;
+    }
+
+    .time-hint {
+      font-size: 10px;
+      color: #909090;
+      margin-top: -6px;
+      margin-bottom: 10px;
+    }
+
+    .insert-custom-btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      width: 100%;
+      background: #323232;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      padding: 10px 12px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .insert-custom-btn:hover {
+      background: #4a4a4a;
+    }
+
+    .insert-custom-btn:active {
+      background: #1a1a1a;
+    }
+
+    .insert-custom-btn:disabled {
+      background: #b3b3b3;
+      cursor: not-allowed;
+    }
+
+    .insert-custom-btn svg {
+      width: 16px;
+      height: 16px;
+      flex-shrink: 0;
+    }
+
+    /* Feedback */
+    .feedback {
+      text-align: center;
+      font-size: 12px;
+      color: #6e6e6e;
+      min-height: 16px;
+    }
+
+    .feedback.success {
+      color: #0d7d0d;
+    }
+
+    .feedback.error {
+      color: #d31510;
+    }
+  </style>
+</head>
+<body>
+  <div class="date-inserter">
+    <!-- Quick insert today -->
+    <div class="quick-insert">
+      <div class="section-label">Quick Insert</div>
+      <span class="today-date" id="today-date"></span>
+      <button class="insert-today-btn" id="insert-today-btn" type="button">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" fill="currentColor">
+          <path d="M9 1a8 8 0 108 8 8 8 0 00-8-8zm4 9H10v3a1 1 0 01-2 0v-3H5a1 1 0 010-2h3V5a1 1 0 012 0v3h3a1 1 0 010 2z"/>
+        </svg>
+        Insert Now
+      </button>
+    </div>
+
+    <div class="divider">or choose date &amp; time</div>
+
+    <!-- Custom date picker -->
+    <div class="custom-date">
+      <div class="section-label">Select Date &amp; Time</div>
+      <div class="input-row">
+        <input type="date" class="date-input" id="date-picker">
+        <input type="time" class="time-input" id="time-picker" placeholder="Time">
+      </div>
+      <div class="time-hint">Time is optional</div>
+      <button class="insert-custom-btn" id="insert-custom-btn" type="button" disabled>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 18 18" fill="currentColor">
+          <path d="M9 1a8 8 0 108 8 8 8 0 00-8-8zm4 9H10v3a1 1 0 01-2 0v-3H5a1 1 0 010-2h3V5a1 1 0 012 0v3h3a1 1 0 010 2z"/>
+        </svg>
+        Insert
+      </button>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+  </div>
+
+  <script type="module" src="date-inserter.js"></script>
+</body>
+</html>
