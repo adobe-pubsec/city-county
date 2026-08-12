@@ -8,16 +8,27 @@ async function fetchNews() {
   return json.data || [];
 }
 
-function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+// Google Sheets/Excel date serial epoch (days since 1899-12-30, UTC) — the
+// query-index's dateValue() transform emits `date` as one of these serials,
+// not a JS timestamp. `lastModified` is separately a Unix epoch in seconds.
+// Passing either straight into `new Date()` silently resolves to ~1970.
+const SHEET_EPOCH_MS = Date.UTC(1899, 11, 30);
+
+function resolveDate(item) {
+  if (typeof item.date === 'number') return new Date(SHEET_EPOCH_MS + (item.date * 86400000));
+  if (item.date) return new Date(item.date);
+  if (item.lastModified) return new Date(item.lastModified * 1000);
+  return null;
+}
+
+function formatDate(date) {
+  if (!date || Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
 function renderCard(item) {
   const tag = (item.tags && item.tags[0]) || '';
-  const date = formatDate(item.date || item.lastModified);
+  const date = formatDate(resolveDate(item));
   const isPlaceholder = item.image?.startsWith('/default-meta-image.png');
 
   return `
@@ -70,11 +81,7 @@ export default async function init(el) {
   const items = data
     .filter((item) => item.title || item.path)
     .filter((item) => !['/news', '/news/index'].includes(item.path?.replace(/\/$/, '')))
-    .sort((a, b) => {
-      const da = new Date(a.date || a.lastModified || 0);
-      const db = new Date(b.date || b.lastModified || 0);
-      return db - da;
-    })
+    .sort((a, b) => (resolveDate(b)?.getTime() || 0) - (resolveDate(a)?.getTime() || 0))
     .slice(0, limit);
 
   if (items.length === 0) {

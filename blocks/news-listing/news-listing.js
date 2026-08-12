@@ -9,14 +9,28 @@ function slugToTitle(path) {
     .join(' ');
 }
 
-function formatDate(raw) {
-  if (!raw) return '';
-  // Normalise MM-DD-YYYY → YYYY-MM-DD
+// Google Sheets/Excel date serial epoch (days since 1899-12-30, UTC) — the
+// query-index's dateValue() transform emits `date` as one of these serials,
+// not a JS timestamp or date string.
+const SHEET_EPOCH_MS = Date.UTC(1899, 11, 30);
+
+// Accepts a sheet date serial (number), or a string in MM-DD-YYYY,
+// YYYY-MM-DD, or a full YYYY-MM-DDTHH:mm datetime (as produced by the
+// date-inserter tool). Bare string dates get a local-midnight time forced on
+// so they don't get UTC-shifted a day off; datetimes are used as-is.
+function toLocalDate(raw) {
+  if (!raw) return null;
+  if (typeof raw === 'number') return new Date(SHEET_EPOCH_MS + (raw * 86400000));
+  if (raw.includes('T')) return new Date(raw);
   const normalized = raw.match(/^\d{2}-\d{2}-\d{4}$/)
     ? (() => { const [mm, dd, yyyy] = raw.split('-'); return `${yyyy}-${mm}-${dd}`; })()
     : raw;
-  const d = new Date(`${normalized}T00:00:00`);
-  if (Number.isNaN(d.getTime())) return '';
+  return new Date(`${normalized}T00:00:00`);
+}
+
+function formatDate(raw) {
+  const d = toLocalDate(raw);
+  if (!d || Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
 }
 
@@ -33,16 +47,7 @@ async function fetchNews() {
   if (!resp.ok) throw new Error('index unavailable');
   const { data = [] } = await resp.json();
   return data
-    .sort((a, b) => {
-      const toMs = (s) => {
-        if (!s) return 0;
-        const norm = s.match(/^\d{2}-\d{2}-\d{4}$/)
-          ? (() => { const [mm, dd, yyyy] = s.split('-'); return `${yyyy}-${mm}-${dd}`; })()
-          : s;
-        return new Date(norm).getTime() || 0;
-      };
-      return toMs(b.date) - toMs(a.date);
-    });
+    .sort((a, b) => (toLocalDate(b.date)?.getTime() || 0) - (toLocalDate(a.date)?.getTime() || 0));
 }
 
 function buildCard(item) {

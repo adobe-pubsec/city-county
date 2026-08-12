@@ -34,19 +34,30 @@ function buildBreadcrumbs() {
   document.querySelector('main')?.before(nav);
 }
 
-function formatDate(raw) {
+// Accepts MM-DD-YYYY, YYYY-MM-DD, or a full YYYY-MM-DDTHH:mm datetime (as
+// produced by the date-inserter tool). Bare dates get a local-midnight time
+// forced on so they don't get UTC-shifted a day off; datetimes are used as-is.
+function parseFlexibleDate(raw) {
   if (!raw) return null;
-  try {
-    // Accepts YYYY-MM-DD or MM-DD-YYYY
-    const normalized = raw.match(/^\d{2}-\d{2}-\d{4}$/)
-      ? (() => { const [mm, dd, yyyy] = raw.split('-'); return `${yyyy}-${mm}-${dd}`; })()
-      : raw;
-    return new Date(`${normalized}T00:00:00`).toLocaleDateString('en-US', {
-      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-    });
-  } catch {
-    return raw;
-  }
+  if (raw.includes('T')) return new Date(raw);
+  const normalized = raw.match(/^\d{2}-\d{2}-\d{4}$/)
+    ? (() => { const [mm, dd, yyyy] = raw.split('-'); return `${yyyy}-${mm}-${dd}`; })()
+    : raw;
+  return new Date(`${normalized}T00:00:00`);
+}
+
+function formatDate(raw) {
+  const d = parseFlexibleDate(raw);
+  if (!d || Number.isNaN(d.getTime())) return raw || null;
+  return d.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
+  });
+}
+
+function formatHM(h, m) {
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
 }
 
 function formatTime(raw) {
@@ -54,12 +65,20 @@ function formatTime(raw) {
   try {
     // Accepts HH:MM (24-hour)
     const [h, m] = raw.split(':').map(Number);
-    const ampm = h >= 12 ? 'PM' : 'AM';
-    const hour = h % 12 || 12;
-    return `${hour}:${String(m).padStart(2, '0')} ${ampm}`;
+    return formatHM(h, m);
   } catch {
     return raw;
   }
+}
+
+// If start-date/end-date already carry a time (from the date-inserter tool)
+// and no separate start-time/end-time meta was authored, fall back to the
+// time embedded in the date itself.
+function timeFromDate(raw) {
+  const d = parseFlexibleDate(raw);
+  if (!d || Number.isNaN(d.getTime())) return null;
+  if (d.getHours() === 0 && d.getMinutes() === 0) return null;
+  return formatHM(d.getHours(), d.getMinutes());
 }
 
 function buildEventInfoBar() {
@@ -101,12 +120,14 @@ function buildEventInfoBar() {
   }
 
   // Time
-  if (startTime) {
+  const resolvedStartTime = startTime ? formatTime(startTime) : timeFromDate(startDate);
+  const resolvedEndTime = endTime ? formatTime(endTime) : timeFromDate(endDate);
+  if (resolvedStartTime) {
     const item = document.createElement('div');
     item.className = 'event-meta-item';
-    let timeText = formatTime(startTime);
-    if (endTime) {
-      timeText += ` – ${formatTime(endTime)}`;
+    let timeText = resolvedStartTime;
+    if (resolvedEndTime) {
+      timeText += ` – ${resolvedEndTime}`;
     }
     item.innerHTML = `<span class="material-symbols-outlined" aria-hidden="true">schedule</span><span>${timeText}</span>`;
     bar.append(item);

@@ -12,8 +12,17 @@ async function fetchEvents() {
 
 function parseDate(str) {
   if (!str) return null;
-  const d = new Date(str);
+  // startDate is always a string, but the lastModified fallback is a Unix
+  // epoch in seconds, not milliseconds — new Date() on it directly resolves
+  // to ~1970.
+  const d = typeof str === 'number' ? new Date(str * 1000) : new Date(str);
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatHM(h, m) {
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hour = h % 12 || 12;
+  return m ? `${hour}:${String(m).padStart(2, '0')} ${ampm}` : `${hour} ${ampm}`;
 }
 
 function formatTime(timeStr) {
@@ -21,9 +30,15 @@ function formatTime(timeStr) {
   // Expects HH:MM (24h) or already formatted
   const [h, m] = timeStr.split(':').map(Number);
   if (Number.isNaN(h)) return timeStr;
-  const ampm = h >= 12 ? 'PM' : 'AM';
-  const hour = h % 12 || 12;
-  return m ? `${hour}:${String(m).padStart(2, '0')} ${ampm}` : `${hour} ${ampm}`;
+  return formatHM(h, m);
+}
+
+// The date-inserter tool writes a combined YYYY-MM-DDTHH:mm datetime into
+// startDate, so there may be no separate startTime — pull the time off the
+// parsed date instead, unless it's exactly midnight (i.e. a bare date).
+function timeFromDate(date) {
+  if (!date || (date.getHours() === 0 && date.getMinutes() === 0)) return '';
+  return formatHM(date.getHours(), date.getMinutes());
 }
 
 function renderEvent(item) {
@@ -31,7 +46,7 @@ function renderEvent(item) {
   const day = date ? date.getDate() : '';
   const month = date ? MONTH_ABBR[date.getMonth()] : '';
 
-  const time = item.startTime ? formatTime(item.startTime) : '';
+  const time = item.startTime ? formatTime(item.startTime) : timeFromDate(date);
   const location = item.location || '';
 
   return `
