@@ -90,6 +90,11 @@ body {
   display: none;
 }
 
+.alert-text a {
+  color: inherit;
+  text-decoration: underline;
+}
+
 /* =============================================
    ALERTS — close button
    ============================================= */
