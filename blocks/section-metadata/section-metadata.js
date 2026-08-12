@@ -87,6 +87,57 @@ async function handleLayout(text, section, type) {
   section.classList.add(`${type}-${text}`);
 }
 
+/**
+ * Splits a section's content into two columns at the point marked by a
+ * `column-separator` block, sized according to a "a/b" ratio (e.g. "50/50").
+ */
+function handleColumns(ratio, section) {
+  delete section.dataset.columns;
+
+  const groups = [...section.children];
+  const sepGroupIdx = groups.findIndex((g) => g.querySelector(':scope > .column-separator'));
+  if (sepGroupIdx === -1) return;
+
+  const sepGroup = groups[sepGroupIdx];
+  const separator = sepGroup.querySelector(':scope > .column-separator');
+  const sepChildren = [...sepGroup.children];
+  const sepIdx = sepChildren.indexOf(separator);
+  const before = sepChildren.slice(0, sepIdx);
+  const after = sepChildren.slice(sepIdx + 1);
+  separator.remove();
+
+  const col1 = document.createElement('div');
+  col1.className = 'column';
+  const col2 = document.createElement('div');
+  col2.className = 'column';
+
+  groups.slice(0, sepGroupIdx).forEach((g) => col1.append(g));
+  if (before.length) {
+    const beforeWrap = document.createElement('div');
+    beforeWrap.className = sepGroup.className;
+    before.forEach((c) => beforeWrap.append(c));
+    col1.append(beforeWrap);
+  }
+  if (after.length) {
+    const afterWrap = document.createElement('div');
+    afterWrap.className = sepGroup.className;
+    after.forEach((c) => afterWrap.append(c));
+    col2.append(afterWrap);
+  }
+  groups.slice(sepGroupIdx + 1).forEach((g) => col2.append(g));
+  sepGroup.remove();
+
+  const wrapper = document.createElement('div');
+  wrapper.className = 'section-columns';
+  const [a, b] = ratio.split('/');
+  if (a && b) {
+    wrapper.style.setProperty('--column-a', `${parseFloat(a) || 1}fr`);
+    wrapper.style.setProperty('--column-b', `${parseFloat(b) || 1}fr`);
+  }
+  wrapper.append(col1, col2);
+  section.append(wrapper);
+}
+
 export default async function init(section) {
   const {
     grid,
@@ -95,6 +146,7 @@ export default async function init(section) {
     container,
     layout,
     background,
+    columns,
   } = section.dataset;
   if (grid) handleLayout(grid, section, 'grid');
   if (gap) handleLayout(gap, section, 'gap');
@@ -102,4 +154,5 @@ export default async function init(section) {
   if (container) handleLayout(container, section, 'container');
   if (background) await handleBackground(background, section);
   if (layout) handleLayout(layout, section, 'layout');
+  if (columns) handleColumns(columns, section);
 }

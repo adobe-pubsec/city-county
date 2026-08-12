@@ -1,45 +1,13 @@
 import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
-const MAX_ITEMS = 5;
-
-const DEMO_EVENTS = [
-  {
-    path: '/events/city-council-meeting-may',
-    title: 'City Council Regular Meeting',
-    startDate: '2026-04-28',
-    startTime: '19:00',
-    location: 'City Hall Chambers',
-  },
-  {
-    path: '/events/parks-rec-workshop',
-    title: 'Parks & Recreation Community Workshop',
-    startDate: '2026-05-02',
-    startTime: '10:00',
-    location: 'Community Center',
-  },
-  {
-    path: '/events/farmers-market-opening',
-    title: 'Downtown Farmers Market — Season Opening',
-    startDate: '2026-05-10',
-    startTime: '08:00',
-    location: 'Court Square, Downtown',
-  },
-  {
-    path: '/events/city-council-meeting-june',
-    title: 'City Council Regular Meeting',
-    startDate: '2026-06-28',
-    startTime: '19:00',
-    location: 'City Hall Chambers',
-  },
-];
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 async function fetchEvents() {
   const url = await resolveIndexUrl('events');
   const resp = await fetch(url);
-  if (!resp.ok) return DEMO_EVENTS;
+  if (!resp.ok) return [];
   const json = await resp.json();
-  return (json.data && json.data.length) ? json.data : DEMO_EVENTS;
+  return json.data || [];
 }
 
 function parseDate(str) {
@@ -85,43 +53,22 @@ function renderEvent(item) {
   `;
 }
 
-export default async function init(el) {
-  // Read authored subtitle, heading, and optional "submit event" link
+function getLimit(el) {
   const rows = [...el.querySelectorAll(':scope > div')];
-  let subtitle = '';
-  let heading = '';
-  let submitHref = '';
-  let submitLabel = '';
-
-  rows.forEach((row) => {
-    const cells = [...row.querySelectorAll(':scope > div')];
-    const link = cells[0]?.querySelector('a');
-    const text = cells[0]?.textContent?.trim() || '';
-
-    if (link) {
-      submitHref = link.href;
-      submitLabel = link.textContent?.trim() || 'Submit an Event';
-    } else if (!heading && text) {
-      if (!subtitle) {
-        subtitle = text;
-      } else {
-        heading = text;
-      }
-    }
+  const row = rows.find((r) => {
+    const key = r.querySelector(':scope > div')?.textContent?.trim().toLowerCase();
+    return key === 'limit';
   });
+  const value = row?.querySelectorAll(':scope > div')[1]?.textContent?.trim();
+  const limit = parseInt(value, 10);
+  // No row, non-numeric, or 0 all mean "no limit" — slice(0, undefined) returns everything
+  return Number.isNaN(limit) || limit <= 0 ? undefined : limit;
+}
 
+export default async function init(el) {
+  const limit = getLimit(el);
   el.innerHTML = '';
 
-  // Section header
-  const header = document.createElement('div');
-  header.className = 'ec-header';
-  header.innerHTML = `
-    ${subtitle ? `<p class="ec-eyebrow">${subtitle}</p>` : ''}
-    ${heading ? `<h2 class="ec-heading">${heading}</h2>` : ''}
-  `;
-  el.append(header);
-
-  // List container
   const list = document.createElement('div');
   list.className = 'ec-list';
   el.append(list);
@@ -134,7 +81,7 @@ export default async function init(el) {
     return;
   }
 
-  // Filter to future/current events, sort ascending
+  // Filter to future/current events, sort ascending, take the authored limit
   const now = Date.now();
   const items = data
     .filter((item) => {
@@ -146,7 +93,7 @@ export default async function init(el) {
       const db = parseDate(b.startDate || b.lastModified) || 0;
       return da - db;
     })
-    .slice(0, MAX_ITEMS);
+    .slice(0, limit);
 
   if (items.length === 0) {
     // Fall back to most recent regardless of date
@@ -156,7 +103,7 @@ export default async function init(el) {
         const db = parseDate(b.startDate || b.lastModified) || 0;
         return db - da;
       })
-      .slice(0, MAX_ITEMS);
+      .slice(0, limit);
 
     if (fallback.length === 0) {
       list.innerHTML = '<p class="ec-error">No upcoming events found.</p>';
@@ -165,13 +112,5 @@ export default async function init(el) {
     list.innerHTML = fallback.map(renderEvent).join('');
   } else {
     list.innerHTML = items.map(renderEvent).join('');
-  }
-
-  // Submit event CTA
-  if (submitHref) {
-    const cta = document.createElement('div');
-    cta.className = 'ec-cta';
-    cta.innerHTML = `<a class="btn ec-submit-btn" href="${submitHref}">${submitLabel}</a>`;
-    el.append(cta);
   }
 }

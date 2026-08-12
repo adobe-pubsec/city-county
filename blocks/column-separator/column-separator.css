@@ -1,0 +1,5 @@
+/* Hidden by default — only ever meant to be visible for an instant before
+   section-metadata.js removes it during the data-columns split. */
+.column-separator {
+  display: none;
+}
