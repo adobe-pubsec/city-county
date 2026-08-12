@@ -1,4 +1,4 @@
-.events-calendar {
+.events {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-l);

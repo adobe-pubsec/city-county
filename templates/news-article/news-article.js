@@ -74,7 +74,8 @@ function buildByline(anchor) {
   }
 
   if (dateMeta) {
-    // Handles both MM-DD-YYYY and YYYY-MM-DD
+    // Handles MM-DD-YYYY, YYYY-MM-DD, and a full YYYY-MM-DDTHH:mm datetime
+    // (as produced by the date-inserter tool)
     const raw = dateMeta.content;
     const date = document.createElement('time');
     date.className = 'article-date';
@@ -83,7 +84,11 @@ function buildByline(anchor) {
       const normalized = raw.match(/^\d{2}-\d{2}-\d{4}$/)
         ? (() => { const [mm, dd, yyyy] = raw.split('-'); return `${yyyy}-${mm}-${dd}`; })()
         : raw;
-      date.textContent = new Date(normalized).toLocaleDateString('en-US', {
+      // A bare YYYY-MM-DD is parsed as UTC midnight, which toLocaleDateString
+      // then shifts back a day in negative-UTC-offset timezones — force
+      // local midnight instead. A full datetime (has "T") is used as-is.
+      const isoLocal = normalized.includes('T') ? normalized : `${normalized}T00:00:00`;
+      date.textContent = new Date(isoLocal).toLocaleDateString('en-US', {
         month: 'long', day: 'numeric', year: 'numeric',
       });
     } catch {
