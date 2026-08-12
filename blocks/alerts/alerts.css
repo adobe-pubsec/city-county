@@ -1,31 +1,22 @@
 /* =============================================
-   ALERTS — section wrapper
+   ALERTS — block
    ============================================= */
 
-/* Hoist the section above the fixed header (header.css uses z-index: 1000) */
-.section:has(.alerts) {
+/* Hoist above the fixed header (header.css uses z-index: 1000) */
+.alerts {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1100;
+  background-color: var(--tertiary);
+  color: #fff;
   margin: 0;
-  padding: 0;
 }
 
 /* Extend body top padding to account for both header + alert bar */
 body {
   padding-top: calc(var(--header-height) + var(--alert-height, 0));
-}
-
-/* =============================================
-   ALERTS — block
-   ============================================= */
-
-.alerts {
-  background-color: var(--tertiary);
-  color: #fff;
-  margin: 0;
 }
 
 .alerts.info  { background-color: var(--secondary); }

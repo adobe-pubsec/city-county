@@ -1,7 +1,5 @@
 import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
 
-const MAX_ITEMS = 3;
-
 async function fetchNews() {
   const url = await resolveIndexUrl('news');
   const resp = await fetch(url);
@@ -40,41 +38,22 @@ function renderCard(item) {
   `;
 }
 
-export default async function init(el) {
-  // Read authored subtitle + heading from block cells
+function getLimit(el) {
   const rows = [...el.querySelectorAll(':scope > div')];
-  let subtitle = '';
-  let heading = '';
-  let viewAllHref = '';
-
-  rows.forEach((row) => {
-    const cells = [...row.querySelectorAll(':scope > div')];
-    const text = cells[0]?.textContent?.trim() || '';
-    const link = cells[0]?.querySelector('a');
-
-    if (link && text) {
-      viewAllHref = link.href;
-    } else if (!heading && text) {
-      if (!subtitle) {
-        subtitle = text;
-      } else {
-        heading = text;
-      }
-    }
+  const row = rows.find((r) => {
+    const key = r.querySelector(':scope > div')?.textContent?.trim().toLowerCase();
+    return key === 'limit';
   });
+  const value = row?.querySelectorAll(':scope > div')[1]?.textContent?.trim();
+  const limit = parseInt(value, 10);
+  // No row, non-numeric, or 0 all mean "no limit" — slice(0, undefined) returns everything
+  return Number.isNaN(limit) || limit <= 0 ? undefined : limit;
+}
 
+export default async function init(el) {
+  const limit = getLimit(el);
   el.innerHTML = '';
 
-  // Section header
-  const header = document.createElement('div');
-  header.className = 'news-header';
-  header.innerHTML = `
-    ${subtitle ? `<p class="news-eyebrow">${subtitle}</p>` : ''}
-    ${heading ? `<h2 class="news-heading">${heading}</h2>` : ''}
-  `;
-  el.append(header);
-
-  // Loading state
   const list = document.createElement('div');
   list.className = 'news-list';
   el.append(list);
@@ -87,7 +66,7 @@ export default async function init(el) {
     return;
   }
 
-  // Sort by date descending, take MAX_ITEMS
+  // Sort by date descending, take the authored limit
   const items = data
     .filter((item) => item.title || item.path)
     .filter((item) => !['/news', '/news/index'].includes(item.path?.replace(/\/$/, '')))
@@ -96,7 +75,7 @@ export default async function init(el) {
       const db = new Date(b.date || b.lastModified || 0);
       return db - da;
     })
-    .slice(0, MAX_ITEMS);
+    .slice(0, limit);
 
   if (items.length === 0) {
     list.innerHTML = '<p class="news-error">No news articles found.</p>';
@@ -104,12 +83,4 @@ export default async function init(el) {
   }
 
   list.innerHTML = items.map(renderCard).join('');
-
-  // "View all" link
-  if (viewAllHref) {
-    const cta = document.createElement('div');
-    cta.className = 'news-cta';
-    cta.innerHTML = `<a class="btn btn-outline news-view-all" href="${viewAllHref}">View All News</a>`;
-    el.append(cta);
-  }
 }

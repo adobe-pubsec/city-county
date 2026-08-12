@@ -12,24 +12,23 @@ function setOffset(px) {
   if (header) header.style.top = `${px}px`;
 }
 
-function updateHeight(section) {
-  setOffset(section.offsetHeight);
+function updateHeight(el) {
+  setOffset(el.offsetHeight);
 }
 
-function clearAlerts(section) {
-  section.remove();
+function clearAlerts(el) {
+  el.remove();
   setOffset(0);
 }
 
 function dismiss(item, key, el) {
-  const section = el.closest('.section');
   item.classList.add('is-dismissed');
   item.addEventListener('transitionend', () => {
     item.remove();
     if (el.querySelector('.alert-item')) {
-      updateHeight(section);
+      updateHeight(el);
     } else {
-      clearAlerts(section);
+      clearAlerts(el);
     }
   }, { once: true });
   try { sessionStorage.setItem(key, '1'); } catch { /* noop */ }
@@ -70,14 +69,14 @@ export default function init(el) {
 
   if (!visible) { el.remove(); return; }
 
-  // Hoist section to top of body so it sits above the fixed header
-  const section = el.closest('.section');
-  section.classList.add('full-width', 'alert-banner');
-  document.body.prepend(section);
-  updateHeight(section);
+  // Hoist just the alert bar to the top of body so it sits above the fixed
+  // header — leave the rest of its section (e.g. a hero sharing the section)
+  // in place.
+  document.body.prepend(el);
+  updateHeight(el);
 
   // Keep --alert-height in sync when the bar wraps on narrow viewports
   if (typeof ResizeObserver !== 'undefined') {
-    new ResizeObserver(() => updateHeight(section)).observe(section);
+    new ResizeObserver(() => updateHeight(el)).observe(el);
   }
 }
