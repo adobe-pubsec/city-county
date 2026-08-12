@@ -16,7 +16,7 @@ function updateHeight(el) {
   setOffset(el.offsetHeight);
 }
 
-function clearAlerts(el) {
+function clearAlert(el) {
   el.remove();
   setOffset(0);
 }
@@ -28,7 +28,7 @@ function dismiss(item, key, el) {
     if (el.querySelector('.alert-item')) {
       updateHeight(el);
     } else {
-      clearAlerts(el);
+      clearAlert(el);
     }
   }, { once: true });
   try { sessionStorage.setItem(key, '1'); } catch { /* noop */ }

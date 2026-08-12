@@ -3,7 +3,7 @@
    ============================================= */
 
 /* Hoist above the fixed header (header.css uses z-index: 1000) */
-.alerts {
+.alert {
   position: fixed;
   top: 0;
   left: 0;
@@ -19,8 +19,8 @@ body {
   padding-top: calc(var(--header-height) + var(--alert-height, 0));
 }
 
-.alerts.info  { background-color: var(--secondary); }
-.alerts.error { background-color: var(--error); }
+.alert.info  { background-color: var(--secondary); }
+.alert.error { background-color: var(--error); }
 
 /* =============================================
    ALERTS — individual alert item
@@ -62,8 +62,8 @@ body {
   flex-shrink: 0;
 }
 
-.alerts.info  .alert-icon { color: var(--secondary-fixed); }
-.alerts.error .alert-icon { color: #ffdad6; }
+.alert.info  .alert-icon { color: var(--secondary-fixed); }
+.alert.error .alert-icon { color: #ffdad6; }
 
 /* =============================================
    ALERTS — text
