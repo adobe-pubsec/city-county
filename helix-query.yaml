@@ -99,6 +99,14 @@ indices:
         select: head > meta[name="start-time"]
         value: |
           attribute(el, "content")
+      endDate:
+        select: head > meta[name="end-date"]
+        value: |
+          attribute(el, "content")
+      endTime:
+        select: head > meta[name="end-time"]
+        value: |
+          attribute(el, "content")
       location:
         select: head > meta[name="location"]
         value: |

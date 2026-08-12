@@ -1,0 +1,83 @@
+.events-calendar {
+  /* Theme FullCalendar's own CSS variables to match this project's tokens */
+  --fc-border-color: var(--outline-variant);
+  --fc-neutral-bg-color: var(--surface-container-low);
+  --fc-page-bg-color: transparent;
+  --fc-today-bg-color: var(--secondary-container);
+  --fc-button-bg-color: var(--primary);
+  --fc-button-border-color: var(--primary);
+  --fc-button-hover-bg-color: var(--secondary);
+  --fc-button-hover-border-color: var(--secondary);
+  --fc-button-active-bg-color: var(--secondary);
+  --fc-button-active-border-color: var(--secondary);
+  --fc-event-bg-color: var(--primary);
+  --fc-event-border-color: var(--primary);
+  --fc-event-text-color: #fff;
+  --fc-list-event-hover-bg-color: var(--surface-container);
+
+  font-family: var(--font-body-stack);
+}
+
+.events-calendar-status {
+  text-align: center;
+  color: var(--on-surface-variant);
+  padding: 3rem 0;
+  font-family: var(--font-body-stack);
+}
+
+.events-calendar-inner {
+  .fc-toolbar-title {
+    font-family: var(--font-heading-stack);
+    color: var(--primary);
+    font-size: 1.25rem;
+  }
+
+  .fc-button {
+    box-shadow: none;
+    text-transform: capitalize;
+    border-radius: var(--radius-pill);
+    font-family: var(--font-body-stack);
+
+    &:focus {
+      box-shadow: 0 0 0 2px var(--secondary-container);
+    }
+  }
+
+  .fc-daygrid-day-number,
+  .fc-list-day-text,
+  .fc-list-day-side-text {
+    color: var(--on-surface);
+    text-decoration: none;
+  }
+
+  .fc-col-header-cell-cushion {
+    color: var(--on-surface-variant);
+    text-decoration: none;
+    font-family: var(--font-body-stack);
+    font-weight: 600;
+  }
+
+  .fc-event {
+    cursor: pointer;
+    border-radius: var(--radius-lg);
+  }
+
+  .fc-list-event-title a {
+    color: var(--on-surface);
+  }
+
+  .fc-list-event:hover td {
+    cursor: pointer;
+  }
+
+  a {
+    text-decoration: none;
+  }
+}
+
+@media (width < 600px) {
+  .events-calendar-inner .fc-toolbar {
+    flex-direction: column;
+    gap: var(--spacing-s);
+  }
+}
