@@ -9,7 +9,7 @@
   left: 0;
   right: 0;
   z-index: 1100;
-  background-color: var(--tertiary);
+  background-color: var(--primary);
   color: #fff;
   margin: 0;
 }
@@ -58,11 +58,11 @@ body {
 .alert-icon {
   font-size: 1.25rem;
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  color: var(--tertiary-fixed);
+  color: var(--accent);
   flex-shrink: 0;
 }
 
-.alert.info  .alert-icon { color: var(--secondary-fixed); }
+.alert.info  .alert-icon { color: var(--accent); }
 .alert.error .alert-icon { color: #ffdad6; }
 
 /* =============================================

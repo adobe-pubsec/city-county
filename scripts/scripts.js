@@ -1,4 +1,9 @@
 import { loadArea, setConfig } from './ak.js';
+import applySiteTheme from './utils/site-theme.js';
+
+// Fire immediately (in parallel with page load) so the metadata.json fetch
+// isn't delayed behind it, minimizing the flash of default theme colors.
+applySiteTheme();
 
 const hostnames = ['authorkit.dev'];
 

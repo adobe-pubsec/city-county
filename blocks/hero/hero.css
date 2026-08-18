@@ -18,7 +18,7 @@
     --gradient-start: rgba(255, 255, 255, 0.8);
     --gradient-end:   rgba(255, 255, 255, 0.2);
 
-    color: var(--on-surface);
+    color: var(--primary);
   }
 
   &.dark {
@@ -113,7 +113,7 @@
     /* <em> = accent color + always on its own line */
     em {
       font-style: normal;
-      color: var(--secondary-fixed);
+      color: var(--accent);
       display: block;
     }
   }
@@ -147,12 +147,12 @@
     }
 
     .hero-foreground {
-      background: var(--primary-container);
+      background: var(--primary);
     }
 
     &.light .hero-foreground {
-      background: var(--surface-container-low);
-      color: var(--on-surface);
+      background: var(--accent);
+      color: var(--primary);
     }
 
     &.hero-text-start img { object-position: 80% 50%; }

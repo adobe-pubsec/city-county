@@ -163,7 +163,7 @@ header {
     }
 
     .main-nav-item {
-      border-bottom: 1px solid var(--outline-variant);
+      border-bottom: 1px solid var(--secondary);
 
       > * {
         max-width: var(--grid-container-width);
@@ -193,7 +193,7 @@ header {
 
     .is-open {
       .main-nav-link {
-        border-bottom: 1px solid var(--outline-variant);
+        border-bottom: 1px solid var(--secondary);
         color: var(--primary);
       }
 
@@ -256,7 +256,7 @@ header {
     }
 
     > .block-content {
-      border-bottom: 1px solid var(--outline-variant);
+      border-bottom: 1px solid var(--secondary);
     }
 
     .action-wrapper {
@@ -273,7 +273,7 @@ header {
   /* ── Dropdown / mega menus ── */
   .menu,
   .mega-menu {
-    background-color: var(--surface-container-low);
+    background-color: var(--accent);
     padding-bottom: var(--grid-gutter-width);
 
     .default-content {
@@ -324,7 +324,7 @@ header {
         font-weight: 700;
         text-transform: uppercase;
         letter-spacing: 0.08em;
-        color: var(--on-surface-variant);
+        color: var(--secondary);
         margin-bottom: var(--spacing-s);
       }
 
@@ -341,7 +341,7 @@ header {
         border-radius: var(--radius-pill);
         font-family: var(--font-body-stack);
         font-size: 0.875rem;
-        color: var(--on-surface-variant);
+        color: var(--secondary);
         text-decoration: none;
         transition: background-color 0.15s, color 0.15s;
 
@@ -353,7 +353,7 @@ header {
         }
 
         &:hover {
-          background-color: var(--surface-container);
+          background-color: var(--accent);
           color: var(--primary);
         }
 
@@ -384,7 +384,7 @@ header {
     }
 
     .brand-section {
-      border-bottom: 1px solid var(--outline-variant);
+      border-bottom: 1px solid var(--secondary);
     }
 
     .main-nav-section {
@@ -392,7 +392,7 @@ header {
     }
 
     .main-nav-item {
-      border-bottom: 1px solid var(--outline-variant);
+      border-bottom: 1px solid var(--secondary);
 
       > * {
         max-width: var(--container-max);

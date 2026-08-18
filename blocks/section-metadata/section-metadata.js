@@ -72,9 +72,14 @@ async function handleBackground(background, section) {
   }
 
   // Color
-  section.style.backgroundColor = background.startsWith('color-token')
-    ? `var(${background.replace('color-token', '--color')})`
-    : background;
+  const BRAND_COLORS = ['primary', 'secondary', 'accent'];
+  if (BRAND_COLORS.includes(background)) {
+    section.style.backgroundColor = `var(--${background})`;
+  } else if (background.startsWith('color-token')) {
+    section.style.backgroundColor = `var(${background.replace('color-token', '--color')})`;
+  } else {
+    section.style.backgroundColor = background;
+  }
 
   setColorScheme(section);
 }

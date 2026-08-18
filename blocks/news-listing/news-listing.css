@@ -19,10 +19,10 @@
     display: flex;
     flex-direction: column;
     text-decoration: none;
-    background: var(--surface-container-lowest);
+    background: var(--accent);
     border-radius: var(--radius-xl);
     overflow: hidden;
-    border: 1px solid var(--outline-variant);
+    border: 1px solid var(--secondary);
     transition: box-shadow 0.2s, transform 0.2s;
 
     &:hover {
@@ -33,7 +33,7 @@
     .nl-card-img {
       aspect-ratio: 16 / 9;
       overflow: hidden;
-      background: var(--surface-container);
+      background: var(--accent);
 
       img {
         display: block;
@@ -59,7 +59,7 @@
     .nl-card-date {
       font-family: var(--font-body-stack);
       font-size: 0.8125rem;
-      color: var(--on-surface-variant);
+      color: var(--secondary);
     }
 
     .nl-card-title {
@@ -78,7 +78,7 @@
     .nl-card-desc {
       font-family: var(--font-body-stack);
       font-size: 0.875rem;
-      color: var(--on-surface-variant);
+      color: var(--secondary);
       line-height: 1.55;
       margin: 0;
       flex: 1;
@@ -117,17 +117,17 @@
       min-width: 2.25rem;
       height: 2.25rem;
       padding: 0 0.625rem;
-      border: 1px solid var(--outline-variant);
-      background: var(--surface-container-lowest);
+      border: 1px solid var(--secondary);
+      background: var(--accent);
       border-radius: var(--radius-xl);
       font-family: var(--font-body-stack);
       font-size: 0.875rem;
-      color: var(--on-surface);
+      color: var(--primary);
       cursor: pointer;
       transition: background-color 0.15s, color 0.15s, border-color 0.15s;
 
       &:hover:not(:disabled) {
-        background: var(--surface-container);
+        background: var(--accent);
         border-color: var(--secondary);
         color: var(--primary);
       }
@@ -147,7 +147,7 @@
     }
 
     .nl-page-ellipsis {
-      color: var(--on-surface-variant);
+      color: var(--secondary);
       padding: 0 0.125rem;
       font-size: 0.875rem;
     }
@@ -156,7 +156,7 @@
   /* ── Status / empty ── */
   .nl-status {
     text-align: center;
-    color: var(--on-surface-variant);
+    color: var(--secondary);
     padding: 3rem 0;
     font-family: var(--font-body-stack);
   }
