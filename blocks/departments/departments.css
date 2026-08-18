@@ -21,7 +21,7 @@
 
   em {
     font-style: normal;
-    color: var(--secondary-fixed);
+    color: var(--accent);
   }
 }
 
@@ -57,9 +57,9 @@
   transition: background-color 0.15s, border-color 0.15s;
 
   &:hover {
-    background: var(--secondary-fixed);
-    border-color: var(--secondary-fixed);
-    color: var(--on-secondary-container);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--primary);
   }
 }
 

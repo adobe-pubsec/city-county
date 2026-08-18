@@ -1,0 +1,127 @@
+.quick-links {
+  display: grid;
+
+  img { display: block; }
+
+  .col > :first-child { margin-top: 0; }
+  .col > :last-child  { margin-bottom: 0; }
+}
+
+/* Mobile: 2×2 grid — all 4 cards equal height */
+.quick-links .row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  align-items: stretch;
+  gap: var(--spacing-m);
+}
+
+/* ── All cards share the same base card style ── */
+.quick-links .col {
+  background: var(--primary);
+  border-radius: var(--radius-xl);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.06), 0 2px 8px -2px rgb(1 27 67 / 0.08);
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.quick-links .col:hover {
+  box-shadow: 0 8px 24px -4px rgb(1 27 67 / 0.14), 0 2px 6px rgb(0 0 0 / 0.06);
+  transform: translateY(-2px);
+}
+
+/* ── Icon chip: SVG picture (col-2/3/4) ── */
+.quick-links .col picture {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  background: rgb(255 255 255 / 15%);
+  border-radius: var(--radius-xl);
+  margin-bottom: 0.875rem;
+  flex-shrink: 0;
+}
+
+.quick-links .col img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+}
+
+/* ── Intro col (col-1) text ── */
+.quick-links .col-1 h2 {
+  font-family: var(--font-heading-stack);
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 0.25rem;
+}
+
+.quick-links .col-1 p:not(:has(.material-symbols-outlined)) {
+  font-family: var(--font-body-stack);
+  font-size: 0.8125rem;
+  color: rgb(255 255 255 / 75%);
+  margin: 0;
+  line-height: 1.45;
+  flex: 1; /* match service cards so all cards fill height evenly */
+}
+
+/* ── Service card (col-2/3/4) text ── */
+.quick-links .col:not(.col-1) h3 {
+  font-family: var(--font-heading-stack);
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 0.25rem;
+}
+
+.quick-links .col:not(.col-1) p:not(:last-child) {
+  font-family: var(--font-body-stack);
+  font-size: 0.8125rem;
+  color: rgb(255 255 255 / 75%);
+  margin: 0;
+  line-height: 1.45;
+  flex: 1;
+}
+
+/* CTA arrow link */
+.quick-links .col:not(.col-1) p:last-child {
+  margin: 0.875rem 0 0;
+}
+
+.quick-links .col:not(.col-1) p:last-child a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: var(--font-body-stack);
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: #fff;
+  text-decoration: none;
+  transition: color 0.15s, gap 0.15s;
+}
+
+.quick-links .col:not(.col-1) p:last-child a::after {
+  content: 'arrow_forward';
+  font-family: 'Material Symbols Outlined';
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 20;
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.quick-links .col:not(.col-1) p:last-child a:hover {
+  color: var(--accent);
+  gap: 0.5rem;
+}
+
+/* ── Desktop ──────────────────────────────────────────────────── */
+@media (width >= 900px) {
+  .quick-links .row {
+    grid-template-columns: 1fr 1fr 1fr 1fr;
+    gap: var(--spacing-l);
+    align-items: stretch;
+  }
+}

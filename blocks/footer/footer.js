@@ -1,5 +1,6 @@
 import { getConfig, getMetadata } from '../../scripts/ak.js';
 import { loadFragment } from '../fragment/fragment.js';
+import { getSiteBase } from '../../scripts/utils/site-config.js';
 
 const FOOTER_PATH = '/fragments/nav/footer';
 
@@ -93,9 +94,10 @@ export default async function init(el) {
   const { locale } = getConfig();
   const footerMeta = getMetadata('footer');
   const path = footerMeta || FOOTER_PATH;
+  const siteBase = await getSiteBase();
 
   try {
-    const fragment = await loadFragment(`${locale.prefix}${path}`);
+    const fragment = await loadFragment(`${siteBase}${locale.prefix}${path}`);
     const sections = [...fragment.querySelectorAll(':scope > .section')];
 
     // Last two sections are copyright and legal

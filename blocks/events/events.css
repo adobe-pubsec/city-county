@@ -17,12 +17,12 @@
   align-items: flex-start;
   gap: var(--spacing-m);
   padding: var(--spacing-m) 0;
-  border-bottom: 1px solid var(--outline-variant);
+  border-bottom: 1px solid var(--secondary);
   text-decoration: none;
   color: inherit;
   transition: background-color 0.15s;
 
-  &:first-child { border-top: 1px solid var(--outline-variant); }
+  &:first-child { border-top: 1px solid var(--secondary); }
 
   &:hover .ec-event-title {
     color: var(--secondary);
@@ -39,7 +39,7 @@
   flex-shrink: 0;
   width: 52px;
   min-height: 56px;
-  background: var(--surface-container-lowest);
+  background: var(--accent);
   border-top: 3px solid var(--primary);
   border-radius: var(--radius-xl);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
@@ -99,7 +99,7 @@
   gap: 0.1875rem;
   font-family: var(--font-body-stack);
   font-size: 0.75rem;
-  color: var(--on-surface-variant);
+  color: var(--secondary);
 
   .material-symbols-outlined {
     font-size: 0.875rem;
@@ -108,7 +108,7 @@
 }
 
 .ec-bullet {
-  color: var(--outline-variant);
+  color: var(--secondary);
   font-size: 0.75rem;
 }
 
@@ -116,6 +116,6 @@
 .ec-error {
   font-family: var(--font-body-stack);
   font-size: 0.9375rem;
-  color: var(--on-surface-variant);
+  color: var(--secondary);
   margin: var(--spacing-m) 0;
 }

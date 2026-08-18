@@ -1,9 +1,9 @@
 .events-calendar {
   /* Theme FullCalendar's own CSS variables to match this project's tokens */
-  --fc-border-color: var(--outline-variant);
-  --fc-neutral-bg-color: var(--surface-container-low);
+  --fc-border-color: var(--secondary);
+  --fc-neutral-bg-color: var(--accent);
   --fc-page-bg-color: transparent;
-  --fc-today-bg-color: var(--secondary-container);
+  --fc-today-bg-color: var(--accent);
   --fc-button-bg-color: var(--primary);
   --fc-button-border-color: var(--primary);
   --fc-button-hover-bg-color: var(--secondary);
@@ -13,14 +13,14 @@
   --fc-event-bg-color: var(--primary);
   --fc-event-border-color: var(--primary);
   --fc-event-text-color: #fff;
-  --fc-list-event-hover-bg-color: var(--surface-container);
+  --fc-list-event-hover-bg-color: var(--accent);
 
   font-family: var(--font-body-stack);
 }
 
 .events-calendar-status {
   text-align: center;
-  color: var(--on-surface-variant);
+  color: var(--secondary);
   padding: 3rem 0;
   font-family: var(--font-body-stack);
 }
@@ -39,19 +39,19 @@
     font-family: var(--font-body-stack);
 
     &:focus {
-      box-shadow: 0 0 0 2px var(--secondary-container);
+      box-shadow: 0 0 0 2px var(--accent);
     }
   }
 
   .fc-daygrid-day-number,
   .fc-list-day-text,
   .fc-list-day-side-text {
-    color: var(--on-surface);
+    color: var(--primary);
     text-decoration: none;
   }
 
   .fc-col-header-cell-cushion {
-    color: var(--on-surface-variant);
+    color: var(--secondary);
     text-decoration: none;
     font-family: var(--font-body-stack);
     font-weight: 600;
@@ -63,7 +63,7 @@
   }
 
   .fc-list-event-title a {
-    color: var(--on-surface);
+    color: var(--primary);
   }
 
   .fc-list-event:hover td {
