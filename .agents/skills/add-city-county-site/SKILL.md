@@ -1,9 +1,10 @@
+SKILL.md
 ---
 name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — typically invoked as just a URL, e.g. "Add a site for https://www.cityname.gov". Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.0.0"
+  version: "5.1.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -79,7 +80,7 @@ implemented — see `scripts/utils/site-theme.js`, `blocks/header/header.js`,
 3. Enumerate & clone `/blueprint` → `/sites/<slug>` (docs **and** binaries)
 4. Rewrite paths, strip host prefixes, AND replace the placeholder entity name
 5. Populate news and events (real content if found, localized fallback if not)
-6. Extract brand assets: 3-color palette and logo
+6. Extract brand assets: 3-color palette, logo, and a location hero image
 7. Update `/metadata.json`
 8. Preview (and, once confirmed, publish)
 9. Hand off
@@ -183,16 +184,39 @@ Two rewrites, applied to every copied **text** document (not binaries):
 
 1. **`/blueprint` → `/sites/{{SLUG}}`** — internal links, `src`, fragment
    references, etc. A plain string replace is sufficient.
-2. **Strip absolute EDS host prefixes → relative URLs.** The blueprint is
-   maintained host-agnostic, but *defensively* strip any
-   `https://main--<repo>--<owner>.aem.(live|page)` prefix so no prior
-   tenant's or author's host leaks into the new site:
+2. **Fix absolute EDS host prefixes — but treat links and images
+   DIFFERENTLY.** Foreign hosts (e.g. `…--jfoxx.aem.live`,
+   `…--chrissands.aem.live`) must not leak in, but **image `media_*`
+   references are NOT the same as nav links** and must be handled separately.
 
-   ```bash
-   sed -i -E 's#https?://main--[a-z0-9-]+--[a-z0-9]+\.aem\.(live|page)##g' <file>
-   ```
-   This converts `https://main--…--….aem.live/departments` → `/departments`,
-   which resolves correctly on whatever host serves the tenant.
+   > ⚠️ Lesson learned: a blanket "strip every `main--…--….aem` host"
+   > breaks `media_*` image references — a bare `/media_<hash>` renders on
+   > the live page but **fails in the DA editor**. Always distinguish
+   > **links → relative** from **images → canonical absolute host**, and
+   > never touch `content.da.live` URLs (those are real DA media/hero refs,
+   > handled in Steps 5 and 6c).
+
+   - **Nav / content links** (`…aem.live/departments`, etc.) → strip to a
+     **relative** path so they resolve on any host:
+     ```bash
+     # links only: an aem host followed by a path that is NOT /media_
+     sed -i -E 's#https?://main--[a-z0-9-]+--[a-z0-9]+\.aem\.(live|page)(/(?!media_)[^"'"'"']*)#\2#g' <file>
+     ```
+   - **Image `media_*` references** (`src=`/`srcset=` pointing at
+     `…/media_<hash>.<ext>`) → rewrite to an **absolute URL on THIS
+     project's own host** (foreign-host media, and any accidental
+     root-relative `/media_`):
+     ```bash
+     CANON="https://main--{{REPO}}--{{ORG}}.aem.live"
+     sed -i -E "s#https?://main--[a-z0-9-]+--[a-z0-9]+\.aem\.(live|page)(/media_)#$CANON\2#g" <file>
+     sed -i -E "s#(src|srcset)=\"/media_#\1=\"$CANON/media_#g" <file>
+     ```
+   - **`content.da.live` URLs** (hero/`.index` images, per-article images) →
+     **leave as-is**; they are project-owned assets handled elsewhere. Do
+     not strip them.
+
+   Net effect: links become host-agnostic relative paths, while images keep
+   a valid, resolvable absolute reference to this project's own media.
 
 3. **Replace the placeholder entity name.** The blueprint carries a generic
    entity name that must become the new site's real one. Two forms appear in
@@ -225,8 +249,11 @@ but see Step 5 for the *additional*, broader locality-reword pass those
 specifically need.
 
 **Verify:** grep the copied text for leftover `/blueprint` references, for
-any `main--…--….aem` host strings, **and** for the placeholder
-`City County` — all three counts must be 0.
+any **foreign** `main--…--….aem` host strings (i.e. any host that is NOT
+`main--{{REPO}}--{{ORG}}`), for root-relative `/media_` image refs, **and**
+for the placeholder `City County` — all four counts must be 0. (Canonical
+`main--{{REPO}}--{{ORG}}.aem.live/media_*` refs and `content.da.live` URLs
+are expected to remain — those are correct.)
 
 ---
 
@@ -393,6 +420,58 @@ Goal: replace the blueprint placeholder in the copied header fragment
 `PUT` the updated header fragment back after the logo swap + `logo-is` edit
 + home link fix.
 
+### 6c. Hero background image
+Goal: replace the blueprint homepage's placeholder hero image with a real,
+attractive photo of the actual city/county, so the site looks authentic.
+
+The blueprint's hero is the **first `<picture>`** inside
+`<div class="hero center">` in `index.html`. It references a generated
+placeholder via an **absolute** `content.da.live` URL (a
+`.index/firefly_…skyline….png` file at the repo root) — so the Step 4
+path/host rewrites do **not** touch it, and the clone still points at the
+shared placeholder. Give each tenant its own image:
+
+1. **Source a location photo.** Find a nice, wide, representative image of the
+   city/county — a skyline, notable landmark, downtown, or aerial view.
+   **Prefer freely-licensed sources** (Wikimedia Commons is reliable and
+   citation-clean; Unsplash also fine). A dependable no-key path is the
+   Wikimedia Commons API:
+   ```bash
+   # search for images
+   curl -s -A "Mozilla/5.0" \
+     "https://commons.wikimedia.org/w/api.php?action=query&format=json&list=search&srnamespace=6&srlimit=8&srsearch=<City>%20<State>%20skyline"
+   # resolve a chosen File: title to a ~1920px-wide thumbnail URL
+   curl -s -A "Mozilla/5.0" \
+     "https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size&iiurlwidth=1920&titles=<File:Title>"
+   ```
+   Prefer a landscape/wide crop (the hero is wide); avoid portrait or tiny
+   images. If nothing suitable is found, leave the placeholder rather than
+   using a poor image.
+2. **Download** it (`curl -L`) and enforce the raster cap (≤ 20 MB); a
+   ~1600–1920px-wide JPEG is ideal.
+3. **Upload** into the tenant's own hidden index media folder:
+   ```bash
+   curl -s -X PUT -H "Authorization: Bearer $TOKEN" \
+     -F "data=@hero.jpg;type=image/jpeg" \
+     "https://admin.da.live/source/{{ORG}}/{{REPO}}/sites/{{SLUG}}/.index/hero.jpg"
+   ```
+4. **Rewrite the hero `<picture>`** in the cloned `index.html` — replace all
+   references to the placeholder (the `content.da.live/.../.index/firefly…png`
+   URL appears **3 times**: two `<source srcset>` and one `<img src>`) with the
+   new image's content URL:
+   `https://content.da.live/{{ORG}}/{{REPO}}/sites/{{SLUG}}/.index/hero.jpg`
+   Then `PUT` `index.html` back and re-preview it.
+
+**Verify:** on the rendered homepage the hero shows the new photo. Note EDS
+transforms the source path into an optimized `media_<hash>.jpg` URL at render
+time (with `width`/`height` attributes matching your image), so the raw
+`.index/hero.jpg` path is not directly reachable — confirm via the rendered
+page, not by fetching the source path.
+
+**Attribution:** for a demo this is fine as-is; if the image will be shown
+publicly, note the source/license (the Wikimedia file page) in case
+attribution is required.
+
 ---
 
 ## Step 7: Update `/metadata.json`
@@ -465,6 +544,8 @@ Tell the user:
 >   `color-secondary: {{SECONDARY_HEX}}`, `color-accent: {{ACCENT_HEX}}`
 > - **Logo:** swapped into the header (`logo-is: {{wide|tall|square}}`) —
 >   or: left as the blueprint placeholder (no usable logo found)
+> - **Hero image:** a photo of {{ENTITY}} (source: {{IMAGE_SOURCE}}) —
+>   or: left as the blueprint placeholder (no suitable image found)
 > - **News/Events:** {{N}} real articles/events sourced from the requester's
 >   site — or: blueprint examples retained with locality reworded to
 >   `{{ENTITY}}`
@@ -479,7 +560,8 @@ Tell the user:
 |---|---|---|
 | `curl` returns nothing / 401 | Token missing/expired or domain not allow-listed | Re-run Step 1 (`oauth-token adobe`, `oauth-domain add adobe admin.da.live`); run **da-auth** if needed |
 | New site's images are broken / show placeholder | Binaries under `.header/` weren't copied (doc-only clone) | Re-run Step 3 including hidden folders and binary files |
-| Links go to another city's host (e.g. `…--chrissands.aem.live`) | Absolute host prefix not stripped in Step 4 | Apply the `sed` host-strip to every copied text file |
+| Links go to another city's host (e.g. `…--chrissands.aem.live`) | Foreign host prefix not stripped from links in Step 4 | Apply the links-only host-strip (the `(?!media_)` variant) to every copied text file |
+| Images broken in the DA editor / bare `/media_<hash>` refs | Blanket host-strip wrongly made image refs root-relative | Rewrite `media_*` refs to `main--{{REPO}}--{{ORG}}.aem.live/media_*` (Step 4, images branch) — never leave them root-relative |
 | New site still says "City County Government" | Placeholder entity name not replaced | Apply the Step 4 entity `sed` (longest-first) to header, footer, index |
 | Copied pages still say `/blueprint/...` | Path rewrite skipped | Grep copied content for `/blueprint` and fix |
 | Clicking the logo/site name goes to the wrong site (or 404s) | Home link was authored root-relative (`href="/"`) with no `/blueprint` substring for Step 4's blanket rewrite to catch | Explicitly set the brand section's anchor(s) `href` to `/sites/{{SLUG}}` (Step 6b.7) — don't rely on the blanket rewrite |
@@ -491,6 +573,8 @@ Tell the user:
 | Colors look wrong on preview | Row `url` glob doesn't match, or extraction was off | Confirm `url` is `/sites/{{SLUG}}/**`; re-sample from the rendered page |
 | Logo blurry/oversized | Low-res or pre-scaled thumbnail used | Re-locate the real nav logo / SVG, not a favicon |
 | Logo squished/cropped | `logo-is` not matched to aspect ratio | Set `logo-is` from intrinsic width/height |
+| Hero still shows the placeholder skyline | Hero `<picture>` refs not rewritten (absolute `content.da.live` URLs, untouched by the Step 4 rewrites) | Replace all 3 firefly refs with the tenant's `.index/hero.jpg` content URL (Step 6c); re-preview |
+| Hero image 404 at `.index/hero.jpg` | Expected — EDS serves an optimized `media_<hash>` URL, not the raw path | Verify on the rendered page, not the source path |
 
 ## Reference
 
