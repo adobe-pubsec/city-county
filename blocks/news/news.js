@@ -1,11 +1,11 @@
-import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
+import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
 
 async function fetchNews() {
-  const url = await resolveIndexUrl('news');
+  const url = resolveIndexUrl('news');
   const resp = await fetch(url);
   if (!resp.ok) return [];
   const json = await resp.json();
-  return json.data || [];
+  return filterBySite(json.data || []);
 }
 
 // Google Sheets/Excel date serial epoch (days since 1899-12-30, UTC) — the

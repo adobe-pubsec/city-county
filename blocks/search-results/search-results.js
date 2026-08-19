@@ -1,3 +1,6 @@
+import { filterBySite } from '../../scripts/utils/query-index.js';
+import { getSiteBase } from '../../scripts/utils/site-config.js';
+
 const INDEX_URL = '/query-index.json';
 const PAGE_SIZE = 10;
 
@@ -5,7 +8,7 @@ async function fetchIndex() {
   const resp = await fetch(INDEX_URL);
   if (!resp.ok) throw new Error(`Failed to load index: ${resp.status}`);
   const json = await resp.json();
-  return json.data || [];
+  return filterBySite(json.data || []);
 }
 
 function score(item, terms) {
@@ -31,13 +34,22 @@ function highlight(text, terms) {
   return result;
 }
 
-function breadcrumb(path) {
-  const parts = path.split('/').filter(Boolean);
-  const labels = parts.map((p) => p.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
-  return ['harrisonburgva.gov', ...labels].join(' › ');
+// Derives a display label for the breadcrumb root from the site's slug,
+// e.g. site-base "/sites/wake-county" -> "Wake County".
+function siteLabelFromBase(siteBase) {
+  const slug = siteBase.split('/').filter(Boolean).pop();
+  if (!slug) return 'Home';
+  return slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function renderResult(item, terms) {
+function breadcrumb(path, siteBase, siteLabel) {
+  const relative = siteBase && path.startsWith(siteBase) ? path.slice(siteBase.length) : path;
+  const parts = relative.split('/').filter(Boolean);
+  const labels = parts.map((p) => p.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+  return [siteLabel, ...labels].join(' › ');
+}
+
+function renderResult(item, terms, siteBase, siteLabel) {
   const el = document.createElement('a');
   el.className = 'sr-result';
   el.href = item.path;
@@ -46,7 +58,7 @@ function renderResult(item, terms) {
   const desc = item.description ? highlight(item.description, terms) : '';
 
   el.innerHTML = `
-    <div class="sr-result-path">${breadcrumb(item.path)}</div>
+    <div class="sr-result-path">${breadcrumb(item.path, siteBase, siteLabel)}</div>
     <div class="sr-result-title">${title}</div>
     ${desc ? `<div class="sr-result-desc">${desc}</div>` : ''}
   `;
@@ -108,6 +120,9 @@ export default async function init(el) {
     return;
   }
 
+  const siteBase = await getSiteBase();
+  const siteLabel = siteLabelFromBase(siteBase);
+
   const results = data
     .map((item) => ({ ...item, _score: score(item, terms) }))
     .filter((item) => item._score > 0)
@@ -127,7 +142,7 @@ export default async function init(el) {
   let shown = 0;
   function showPage() {
     const page = results.slice(shown, shown + PAGE_SIZE);
-    page.forEach((item) => list.append(renderResult(item, terms)));
+    page.forEach((item) => list.append(renderResult(item, terms, siteBase, siteLabel)));
     shown += page.length;
 
     if (moreBtn) {

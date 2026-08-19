@@ -1,13 +1,13 @@
-import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
+import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 async function fetchEvents() {
-  const url = await resolveIndexUrl('events');
+  const url = resolveIndexUrl('events');
   const resp = await fetch(url);
   if (!resp.ok) return [];
   const json = await resp.json();
-  return json.data || [];
+  return filterBySite(json.data || []);
 }
 
 function parseDate(str) {

@@ -1,4 +1,4 @@
-import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
+import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
 
 const ITEMS_PER_PAGE = 6;
 
@@ -42,11 +42,12 @@ function imageUrl(raw) {
 }
 
 async function fetchNews() {
-  const url = await resolveIndexUrl('news');
+  const url = resolveIndexUrl('news');
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('index unavailable');
   const { data = [] } = await resp.json();
-  return data
+  const siteNews = await filterBySite(data);
+  return siteNews
     .sort((a, b) => (toLocalDate(b.date)?.getTime() || 0) - (toLocalDate(a.date)?.getTime() || 0));
 }
 

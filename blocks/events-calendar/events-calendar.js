@@ -1,12 +1,12 @@
 import { getConfig } from '../../scripts/ak.js';
-import { resolveIndexUrl } from '../../scripts/utils/query-index.js';
+import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
 
 async function fetchEvents() {
-  const url = await resolveIndexUrl('events');
+  const url = resolveIndexUrl('events');
   const resp = await fetch(url);
   if (!resp.ok) throw new Error('index unavailable');
   const json = await resp.json();
-  return json.data || [];
+  return filterBySite(json.data || []);
 }
 
 async function loadFullCalendar() {
