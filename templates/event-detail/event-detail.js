@@ -1,5 +1,9 @@
-function buildBreadcrumbs() {
-  const parts = window.location.pathname.split('/').filter(Boolean);
+async function buildBreadcrumbs() {
+  const { getSiteBase } = await import('../../scripts/utils/site-config.js');
+  const siteBase = await getSiteBase();
+  const { pathname } = window.location;
+  const relative = siteBase && pathname.startsWith(siteBase) ? pathname.slice(siteBase.length) : pathname;
+  const parts = relative.split('/').filter(Boolean);
   // e.g. ['events', 'city-council-meeting-may']
 
   const nav = document.createElement('nav');
@@ -10,14 +14,14 @@ function buildBreadcrumbs() {
 
   // Home
   const home = document.createElement('li');
-  home.innerHTML = '<a href="/">Home</a>';
+  home.innerHTML = `<a href="${siteBase || '/'}">Home</a>`;
   ol.append(home);
 
   // Section (events)
   if (parts[0]) {
     const section = document.createElement('li');
     const label = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-    section.innerHTML = `<a href="/${parts[0]}">${label}</a>`;
+    section.innerHTML = `<a href="${siteBase}/${parts[0]}">${label}</a>`;
     ol.append(section);
   }
 
@@ -186,8 +190,8 @@ function buildAutoHero() {
   }
 }
 
-export default function init() {
-  buildBreadcrumbs();
+export default async function init() {
+  await buildBreadcrumbs();
   buildAutoHero();
   buildEventInfoBar();
 }

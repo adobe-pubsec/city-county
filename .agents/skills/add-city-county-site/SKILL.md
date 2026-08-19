@@ -1,9 +1,9 @@
 ---
 name: add-city-county-site
-description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — typically invoked as just a URL, e.g. "Add a site for https://www.cityname.gov". Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
+description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — typically invoked as just a URL, e.g. "Add a site for https://www.cityname.gov". Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "4.0.0"
+  version: "5.0.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -15,8 +15,16 @@ via `/metadata.json`. The header/footer (`blocks/header/header.js`,
 `blocks/footer/footer.js`) and theme colors (`scripts/utils/site-theme.js`,
 `styles/styles.css`) already read `site-base`, `color-primary`,
 `color-secondary`, and `color-accent` from that sheet at runtime — this
-skill's job is purely content-side: clone the folder, add the row, and swap
-in the new site's own logo and colors.
+skill's job is purely content-side: clone the folder, populate news/events,
+add the metadata row, and swap in the new site's own logo and colors.
+
+News and events are shared, cross-tenant query-indices
+(`/news-index.json`, `/events-index.json` — see `helix-query.yaml`), not
+per-site files. `scripts/utils/query-index.js`'s `filterBySite()` filters
+those combined indices down to the current site by `path` prefix at read
+time, so anything this skill publishes under `/sites/{{SLUG}}/news/**` or
+`/sites/{{SLUG}}/events/**` shows up automatically in that site's news
+blocks and search — no separate per-site index config needed.
 
 ## Execution model — READ THIS FIRST
 
@@ -59,7 +67,8 @@ implemented — see `scripts/utils/site-theme.js`, `blocks/header/header.js`,
 - **da-content** — REQUIRED. DA content model, path rules, sheet JSON shape,
   binary format/size caps, and the preview-is-separate-from-write rule.
 - **da-auth** — fallback if `oauth-token adobe` does not yield a usable token.
-- **scrape-webpage** — optional, for a full-screenshot brand-extraction pass.
+- **scrape-webpage** — for sourcing real news/events content and brand
+  extraction from the requester's URL (Steps 5 and 6a).
 
 ---
 
@@ -69,10 +78,11 @@ implemented — see `scripts/utils/site-theme.js`, `blocks/header/header.js`,
 2. Gather inputs (site URL or name/color sample)
 3. Enumerate & clone `/blueprint` → `/sites/<slug>` (docs **and** binaries)
 4. Rewrite paths, strip host prefixes, AND replace the placeholder entity name
-5. Extract brand assets: 3-color palette and logo
-6. Update `/metadata.json`
-7. Preview (and, once confirmed, publish)
-8. Hand off
+5. Populate news and events (real content if found, localized fallback if not)
+6. Extract brand assets: 3-color palette and logo
+7. Update `/metadata.json`
+8. Preview (and, once confirmed, publish)
+9. Hand off
 
 ---
 
@@ -103,19 +113,23 @@ curl -s -o /dev/null -w "%{http_code}\n" \
 ## Step 2: Gather Inputs
 
 **Expect the common case to be a single URL** — e.g. "Add a site for
-https://www.wake.gov". That one URL does double duty:
+https://www.wake.gov". That one URL does triple duty:
 
 1. **Site name/slug** — fetch the page; derive the name from `<title>`,
    `og:site_name`, or a prominent "City of ___" / "County of ___" heading.
    Slugify: lowercase, spaces/underscores → dashes, strip anything outside
    `[a-z0-9-]` (e.g. "Wake County Government" → `wake-county`).
    **Confirm the derived name and slug with the user before proceeding.**
-2. **Colors and logo** — the same URL is the input to Step 5's extraction.
-   Don't ask for a separate sample when a URL was given.
+2. **Colors and logo** — the same URL is the input to Step 6's extraction.
+3. **News and events content** — the same URL is also the input to Step 5's
+   sourcing pass.
+
+Don't ask for separate samples for any of the above when a URL was given —
+extract everything from it.
 
 Only fall back to explicit questions if no URL is given (named site with no
 link, hex codes provided directly, or a logo image attached). Never invent
-colors and never fabricate a logo.
+colors, never fabricate a logo, and never fabricate news/events content.
 
 Also capture **`{{ENTITY}}`** — the proper display name that replaces the
 blueprint's placeholder in Step 4 (e.g. "Wake County", "City of
@@ -143,7 +157,10 @@ site with broken/placeholder images. You must copy **both**.
    curl -s -H "Authorization: Bearer $TOKEN" \
      "https://admin.da.live/list/{{ORG}}/{{REPO}}/blueprint/<subpath>"
    ```
-   Build a full list of every file path under `/blueprint`.
+   Build a full list of every file path under `/blueprint`. This necessarily
+   includes `/blueprint/news/**` and `/blueprint/events/**` — those example
+   articles/events come along for free here and are what Step 5's fallback
+   builds on.
 
 2. **For each file:** `GET` the source, then `PUT` it to the mirrored path
    under `/sites/{{SLUG}}/...`.
@@ -155,7 +172,8 @@ site with broken/placeholder images. You must copy **both**.
      raster ≤ 20 MB).
 
 **Verify:** `GET /list/.../sites/{{SLUG}}` and confirm the tree mirrors the
-blueprint (same files, including the `.header` binaries).
+blueprint (same files, including the `.header` binaries and the `news`/
+`events` folders).
 
 ---
 
@@ -201,7 +219,10 @@ Two rewrites, applied to every copied **text** document (not binaries):
    County" vs. "Wake County Government" vs. "County of Wake").
 
 Note: header/footer and theme colors resolve relative to `site-base` at
-runtime and need no further path-rewriting.
+runtime and need no further path-rewriting. This exact-string pass also
+applies to the blueprint's example news/events articles copied in Step 3 —
+but see Step 5 for the *additional*, broader locality-reword pass those
+specifically need.
 
 **Verify:** grep the copied text for leftover `/blueprint` references, for
 any `main--…--….aem` host strings, **and** for the placeholder
@@ -209,15 +230,103 @@ any `main--…--….aem` host strings, **and** for the placeholder
 
 ---
 
-## Step 5: Extract Brand Assets — Colors and Logo
+## Step 5: Populate News and Events
+
+Steps 3–4 already gave the new site *working* news/event pages — the
+blueprint's own example articles, cloned and generically de-placeholdered.
+This step's job: replace that filler with real content from the source site
+where possible, and make whatever's left over read as genuinely local where
+it isn't.
+
+### 5a. Try to source real content
+
+Look for a News/Press Releases/Announcements section and an Events/Calendar
+section on the source site (the URL from Step 2; `scrape-webpage` can help
+pull full page content if a simple fetch isn't enough).
+
+If found, for **news** and/or **events** independently:
+
+1. Pick **4–5 real, current items** — genuine headlines/titles, dates,
+   descriptions. Never invent facts to fill the count; use fewer if that's
+   all that's genuinely there.
+2. **Use an existing blueprint example as the structural mold.** Read one
+   already-cloned page at `/sites/{{SLUG}}/news/<slug>.html` (or
+   `/events/<slug>.html`) and mirror its exact shape — same Page Metadata
+   block keys (`Title`, `Description`, `Image`, `Publication Date`,
+   `Article:tag` for news; add `Start Date`/`Start Time`/`End Date`/
+   `End Time`/`Location` for events — check the actual example, don't
+   guess), same hero/lead-image placement, same body structure. Only the
+   *content* changes — title, dates, description, tags, location, body
+   copy, image. This is what `templates/news-article/news-article.js` and
+   `templates/event-detail/event-detail.js` render, and what the
+   `news`/`events` indices in `helix-query.yaml` select — matching the
+   existing shape keeps both working without guesswork.
+3. Either **overwrite** one of the already-cloned blueprint example pages
+   with real content (reusing its path), or **create additional pages** at
+   `/sites/{{SLUG}}/news/<new-slug>.html` / `/events/<new-slug>.html` cloned
+   from that same structural mold if you want more than the blueprint
+   provided one-for-one. Slugify new filenames the same way as the site
+   slug.
+4. **Images:** download from the source site and re-upload into the site's
+   media, same as the logo step (Step 6b) — don't hotlink a third party;
+   respect the size caps.
+5. Dates: match whatever format the blueprint's own example already uses in
+   its `Publication Date`/`Start Date` cell (see `tools/date-inserter` and
+   the parsing comments in `blocks/news/news.js`/`blocks/events/events.js`
+   for the accepted formats) rather than inventing a new one.
+
+### 5b. Fallback — no real content found (in whole or in part)
+
+For whichever of news/events couldn't be sourced from the requester's site,
+leave the blueprint-derived copies from Steps 3–4 in place, but run one more
+targeted pass on just `/sites/{{SLUG}}/news/**` and `/sites/{{SLUG}}/events/**`:
+
+- **Reword generic locality references** — phrases like "the county",
+  "county officials", "the city," etc. — to `{{ENTITY}}` (e.g. "the county"
+  → "Wake County") so the articles read as genuinely local rather than
+  obvious filler. This is broader than Step 4's exact-string
+  `City County`/`City County Government` replacement: read each article in
+  context and reword the locality mentions, don't blind-`sed` a fixed token
+  that may not literally appear.
+- **Don't fabricate specific facts** — real incidents, official names,
+  statistics, addresses. Only reword the locality reference itself; leave
+  the rest of the blueprint's placeholder narrative intact.
+
+### 5c. Publish so the shared indices pick it up
+
+`POST` a preview for every news/events path you touched in 5a/5b (new,
+overwritten, or reworded) — same preview call as Step 8, but do it here so
+`/news-index.json`/`/events-index.json` reflect the new site promptly
+rather than waiting for the final full-site preview pass:
+
+```bash
+curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+  "https://admin.hlx.page/preview/{{ORG}}/{{REPO}}/main/sites/{{SLUG}}/news/<slug>"
+# repeat per news/events path touched
+```
+
+Preview (not `aem.live` publish) is what populates the shared index on the
+`aem.page` domain — confirmed empirically when testing `/sites/wake-county`.
+Pushing to production `aem.live` still follows the same ask-before-publishing
+rule as the rest of this skill (Step 8) — these pages go live together with
+everything else, not ahead of it.
+
+**Verify:** fetch `/news-index.json` and `/events-index.json` and confirm
+rows with `path` under `/sites/{{SLUG}}/news/` and `/sites/{{SLUG}}/events/`
+appear, and spot-check that no fallback article still reads with obviously
+generic locality phrasing.
+
+---
+
+## Step 6: Extract Brand Assets — Colors and Logo
 
 Both come from the URL in Step 2 (or an attached image).
 
-### 5a. Color palette
+### 6a. Color palette
 Goal: `color-primary`, `color-secondary`, `color-accent` (map to
 `--primary`/`--secondary`/`--accent` in `styles/styles.css`).
 
-- **Hex codes already given?** Use them, skip to 5b.
+- **Hex codes already given?** Use them, skip to 6b.
 - **URL given?**
   1. Check for explicit signals first: `<meta name="theme-color">`, or CSS
      custom properties (`--primary`/`--brand`/`--color-*`) in linked styles.
@@ -237,7 +346,7 @@ primary-solid / accent-pop contrast relationship the blocks expect
 
 **Confirm the 3 hex values with the user before writing.**
 
-### 5b. Logo
+### 6b. Logo
 Goal: replace the blueprint placeholder in the copied header fragment
 (`/sites/{{SLUG}}/fragments/nav/header.html`).
 
@@ -286,7 +395,7 @@ Goal: replace the blueprint placeholder in the copied header fragment
 
 ---
 
-## Step 6: Update `/metadata.json`
+## Step 7: Update `/metadata.json`
 
 `/metadata.json` is a **DA sheet**, not a bare array — its shape is:
 `{ "total", "limit", "offset", "data": [ …rows… ], ":colWidths", ":sheetname":"data", ":type":"sheet" }`.
@@ -313,10 +422,11 @@ alongside every prior row, and the envelope keys survived.
 
 ---
 
-## Step 7: Preview (and, only if confirmed, Publish)
+## Step 8: Preview (and, only if confirmed, Publish)
 
-`POST` a preview for **every path copied in Step 3**, plus the metadata sheet.
-Note the metadata path is **`/metadata.json`** (previewing `/metadata` 404s):
+`POST` a preview for **every path copied in Step 3**, plus any pages added
+(not just overwritten) in Step 5, plus the metadata sheet. Note the metadata
+path is **`/metadata.json`** (previewing `/metadata` 404s):
 
 ```bash
 for p in sites/{{SLUG}}/index \
@@ -329,17 +439,23 @@ for p in sites/{{SLUG}}/index \
 done
 ```
 
+(News/events paths were already previewed in Step 5c — no need to repeat
+those here unless something changed since.)
+
 **Render check:** open
 `https://main--{{REPO}}--{{ORG}}.aem.page/sites/{{SLUG}}/` and confirm the
 page renders, the palette is applied (inspect `--primary`/`--secondary`/
-`--accent` on `:root`), and the new logo shows.
+`--accent` on `:root`), the new logo shows, and the news/events blocks show
+the populated content.
 
 **Publishing** to `aem.live` is production-visible — **ask the user to
 confirm** before publishing. Don't publish automatically.
 
 ---
 
-## Step 8: Hand Off
+## Step 9: Hand Off
+
+Tell the user:
 
 > **New site ready:** `{{SLUG}}`
 >
@@ -349,6 +465,9 @@ confirm** before publishing. Don't publish automatically.
 >   `color-secondary: {{SECONDARY_HEX}}`, `color-accent: {{ACCENT_HEX}}`
 > - **Logo:** swapped into the header (`logo-is: {{wide|tall|square}}`) —
 >   or: left as the blueprint placeholder (no usable logo found)
+> - **News/Events:** {{N}} real articles/events sourced from the requester's
+>   site — or: blueprint examples retained with locality reworded to
+>   `{{ENTITY}}`
 >
 > Not yet published to production — let me know when you want that pushed live.
 
@@ -363,7 +482,9 @@ confirm** before publishing. Don't publish automatically.
 | Links go to another city's host (e.g. `…--chrissands.aem.live`) | Absolute host prefix not stripped in Step 4 | Apply the `sed` host-strip to every copied text file |
 | New site still says "City County Government" | Placeholder entity name not replaced | Apply the Step 4 entity `sed` (longest-first) to header, footer, index |
 | Copied pages still say `/blueprint/...` | Path rewrite skipped | Grep copied content for `/blueprint` and fix |
-| Clicking the logo/site name goes to the wrong site (or 404s) | Home link was authored root-relative (`href="/"`) with no `/blueprint` substring for Step 4's blanket rewrite to catch | Explicitly set the brand section's anchor(s) `href` to `/sites/{{SLUG}}` (Step 5b.7) — don't rely on the blanket rewrite |
+| Clicking the logo/site name goes to the wrong site (or 404s) | Home link was authored root-relative (`href="/"`) with no `/blueprint` substring for Step 4's blanket rewrite to catch | Explicitly set the brand section's anchor(s) `href` to `/sites/{{SLUG}}` (Step 6b.7) — don't rely on the blanket rewrite |
+| News/events articles still read like generic filler ("the county...") | Step 5b's locality reword pass was skipped or only caught the exact Step 4 tokens | Re-read each fallback article and reword locality mentions to `{{ENTITY}}` in context |
+| New site's news/events pages don't show up in listings or search | Not previewed (Step 5c), or `path` doesn't actually sit under `/sites/{{SLUG}}/news/` or `/events/` | Preview the specific page path; confirm it matches the `helix-query.yaml` include glob `/sites/*/news/**` or `/sites/*/events/**` |
 | Metadata write corrupts the sheet / other rows vanish | Wrote a bare array instead of the sheet envelope | Preserve `{data, :type:"sheet", …}`; see **da-content** |
 | Preview 404 for metadata | Used `/metadata` instead of `/metadata.json` | Preview `metadata.json` |
 | Preview 404 for a page | Path wasn't copied, or wrong branch | Re-check Step 3 output; branch is `main` |
@@ -375,4 +496,10 @@ confirm** before publishing. Don't publish automatically.
 
 - Runtime theming: `scripts/utils/site-config.js`, `scripts/utils/site-theme.js`,
   `blocks/header/header.js`, `blocks/footer/footer.js`
+- News/events rendering & indexing: `blocks/news/news.js`,
+  `blocks/news-listing/news-listing.js`, `blocks/events/events.js`,
+  `blocks/events-calendar/events-calendar.js`,
+  `templates/news-article/news-article.js`,
+  `templates/event-detail/event-detail.js`, `scripts/utils/query-index.js`,
+  `helix-query.yaml`
 - DA API / sheet / binary rules: **da-content** skill
