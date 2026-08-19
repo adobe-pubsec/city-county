@@ -98,29 +98,11 @@
   --color-yellow-800: #373100;
   --color-yellow-900: #1e1b00;
 
-  /* ── Harrisonburg design tokens ── */
-  --primary:                   #011b43;
-  --secondary:                 #14677c;
-  --surface:                   #f8f9fe;
-  --on-surface:                #191c1f;
-  --on-surface-variant:        #44474e;
-  --secondary-container:       #9fe4fd;
-  --on-secondary-container:    #16677d;
-  --primary-container:         #1b3159;
-  --on-primary-container:      #859ac8;
-  --primary-fixed-dim:         #b2c6f7;
-  --secondary-fixed:           #b5ebff;
-  --secondary-fixed-dim:       #8bd0e9;
-  --surface-container-lowest:  #ffffff;
-  --surface-container-low:     #f3f3f8;
-  --surface-container:         #edeef2;
-  --surface-container-high:    #e7e8ec;
-  --surface-container-highest: #e1e2e7;
-  --tertiary:                  #410500;
-  --tertiary-fixed:            #ffdad3;
-  --on-tertiary:               #ffffff;
-  --outline-variant:           #c5c6cf;
-  --error:                     #ba1a1a;
+  /* ── Brand tokens (driven by metadata.json per site — see scripts/utils/site-theme.js) ── */
+  --primary:   #011b43;
+  --secondary: #14677c;
+  --accent:    #b5ebff;
+  --error:     #ba1a1a;
 
   /* border radius tokens */
   --radius:      0.125rem;
@@ -138,12 +120,8 @@
   --color-dark-base: 0 0 0;
   --color-light: rgb(255 255 255);
   --color-dark: rgb(0 0 0);
-  --color-text:       var(--on-surface);
   --color-link:       var(--primary);
-  --color-brand:      var(--secondary);
-  --color-accent:     var(--secondary);
-  --color-background: var(--surface);
-  --color-shaded:     var(--surface-container-low);
+  --color-background: var(--accent);
 
   /* font stacks */
   --font-headline: 'Public Sans', 'Trebuchet MS', sans-serif;
@@ -194,8 +172,8 @@ html {
 
 body {
   margin: 0;
-  background-color: var(--surface);
-  color: var(--on-surface);
+  background-color: var(--color-light);
+  color: var(--color-dark);
   font-family: var(--font-body-stack);
   font-size: var(--body-font-size-m);
   line-height: var(--body-line-height);
@@ -266,11 +244,11 @@ a {
 
   &.btn-secondary {
     color: #fff;
-    background-color: var(--on-surface-variant);
-    border-color: var(--on-surface-variant);
+    background-color: var(--secondary);
+    border-color: var(--secondary);
 
     &.btn-outline {
-      color: var(--on-surface-variant);
+      color: var(--secondary);
       background: transparent;
     }
   }
@@ -360,8 +338,8 @@ svg {
 }
 
 ::selection {
-  background-color: var(--secondary-container);
-  color: var(--on-secondary-container);
+  background-color: var(--accent);
+  color: var(--primary);
 }
 
 .material-symbols-outlined {

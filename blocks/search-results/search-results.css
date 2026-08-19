@@ -12,8 +12,8 @@
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--surface-container-lowest);
-  border: 2px solid var(--outline-variant);
+  background: var(--accent);
+  border: 2px solid var(--secondary);
   border-radius: var(--radius-pill);
   padding: 0.375rem 0.375rem 0.375rem 1rem;
   transition: border-color 0.15s, box-shadow 0.15s;
@@ -25,7 +25,7 @@
 }
 
 .sr-icon {
-  color: var(--on-surface-variant);
+  color: var(--secondary);
   font-size: 1.25rem;
   flex-shrink: 0;
 }
@@ -36,13 +36,13 @@
   background: transparent;
   font-family: var(--font-body-stack);
   font-size: 1rem;
-  color: var(--on-surface);
+  color: var(--primary);
   outline: none;
   min-width: 0;
   padding: 0.5rem 0;
 
   appearance: none;
-  &::placeholder { color: var(--on-surface-variant); opacity: 0.7; }
+  &::placeholder { color: var(--secondary); opacity: 0.7; }
   &::-webkit-search-cancel-button { appearance: none; }
 }
 
@@ -71,10 +71,10 @@
 .sr-status {
   font-family: var(--font-body-stack);
   font-size: 0.9375rem;
-  color: var(--on-surface-variant);
+  color: var(--secondary);
   margin: 0 0 var(--spacing-l);
 
-  strong { color: var(--on-surface); }
+  strong { color: var(--primary); }
 }
 
 /* ── Results list ── */
@@ -88,12 +88,12 @@
 .sr-result {
   display: block;
   padding: var(--spacing-l) 0;
-  border-bottom: 1px solid var(--outline-variant);
+  border-bottom: 1px solid var(--secondary);
   text-decoration: none;
   color: inherit;
   transition: background-color 0.15s;
 
-  &:first-child { border-top: 1px solid var(--outline-variant); }
+  &:first-child { border-top: 1px solid var(--secondary); }
 
   &:hover .sr-result-title {
     color: var(--secondary);
@@ -119,8 +119,8 @@
   transition: color 0.15s;
 
   mark {
-    background: var(--secondary-container);
-    color: var(--on-secondary-container);
+    background: var(--accent);
+    color: var(--primary);
     border-radius: 2px;
     padding: 0 2px;
   }
@@ -129,12 +129,12 @@
 .sr-result-desc {
   font-family: var(--font-body-stack);
   font-size: 0.9375rem;
-  color: var(--on-surface-variant);
+  color: var(--secondary);
   line-height: 1.5;
 
   mark {
-    background: var(--secondary-container);
-    color: var(--on-secondary-container);
+    background: var(--accent);
+    color: var(--primary);
     border-radius: 2px;
     padding: 0 2px;
     font-weight: 600;

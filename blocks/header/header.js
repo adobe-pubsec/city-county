@@ -1,6 +1,7 @@
 import { getConfig, getMetadata } from '../../scripts/ak.js';
 import { loadFragment } from '../fragment/fragment.js';
 import { setColorScheme } from '../section-metadata/section-metadata.js';
+import { getSiteBase } from '../../scripts/utils/site-config.js';
 
 const { locale, locales: siteLocales } = getConfig();
 // Derived from scripts.js locales config — add/remove locales there, not here
@@ -53,7 +54,8 @@ async function buildLanguageMenu(section) {
   if (menu) return menu;
 
   // Always load the base (English) languages fragment
-  const fragment = await loadFragment(`${HEADER_PATH}/languages`);
+  const siteBase = await getSiteBase();
+  const fragment = await loadFragment(`${siteBase}${HEADER_PATH}/languages`);
 
   // Make each link point to the current page in its locale
   const { basePath, activePrefix } = getBasePath();
@@ -261,8 +263,9 @@ async function decorateHeader(fragment) {
 export default async function init(el) {
   const headerMeta = getMetadata('header');
   const path = headerMeta || HEADER_PATH;
+  const siteBase = await getSiteBase();
   try {
-    const fragment = await loadFragment(`${locale.prefix}${path}`);
+    const fragment = await loadFragment(`${siteBase}${locale.prefix}${path}`);
     fragment.classList.add('header-content');
     await decorateHeader(fragment);
     el.append(fragment);
