@@ -4,13 +4,23 @@
   overflow-wrap: break-word;
   box-shadow: 0 1px 6px 0 rgb(0 0 0 / 12%);
   overflow: hidden;
-  background-color: light-dark(var(--color-gray-100), var(--color-gray-900));
+  border-radius: var(--radius-xl);
+  /* Semi-transparent rather than solid, so a colored section background
+     (e.g. a dark ambient bg) shows through slightly instead of a flat
+     black/gray block. */
+  background-color: light-dark(rgb(241 241 241 / 55%), rgb(27 27 27 / 55%));
   color: light-dark(var(--color-dark), var(--color-light));
   transition: all 0.25s ease-in-out;
 
   .card-inner {
     display: grid;
-    grid-template-rows: auto 1fr auto;
+    /* Not 1fr for the content row — that grows to fill any leftover
+       height, which is fine when a description needs to push a longer
+       card's CTA down to match its siblings, but leaves a big empty gap
+       for a heading-only card with no description. Natural sizing here;
+       any extra height from matching a taller sibling just shows as
+       space after the CTA instead. */
+    grid-template-rows: auto auto auto;
     height: 100%;
   }
 

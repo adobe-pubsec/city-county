@@ -100,6 +100,7 @@ export default async function init(section) {
     layout,
     background,
     columns,
+    align,
   } = section.dataset;
   if (grid) handleLayout(grid, section, 'grid');
   if (gap) handleLayout(gap, section, 'gap');
@@ -108,4 +109,5 @@ export default async function init(section) {
   if (background) await handleBackground(background, section);
   if (layout) handleLayout(layout, section, 'layout');
   if (columns) handleColumns(columns, section);
+  if (align) handleLayout(align, section, 'align');
 }

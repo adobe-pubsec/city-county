@@ -82,6 +82,30 @@
     gap: var(--gap-spacing);
   }
 
+  /* Align: start|center|end — grid's default is stretch, which top-aligns
+     content when a Columns split or a block grid has mismatched-height
+     sides (e.g. a short intro next to a taller card grid). */
+  &.align-start {
+    .section-columns,
+    .block-content {
+      align-items: start;
+    }
+  }
+
+  &.align-center {
+    .section-columns,
+    .block-content {
+      align-items: center;
+    }
+  }
+
+  &.align-end {
+    .section-columns,
+    .block-content {
+      align-items: end;
+    }
+  }
+
   &.center {
     .default-content {
       text-align: center;
@@ -153,6 +177,25 @@
       grid-template-columns: 1fr;
     }
   }
+}
+
+/* `.section > * { color: light-dark(...) }` above only reaches direct
+   children — handleColumns() moves the classed content group a level
+   deeper, into .section-columns > .column, once a Columns split happens,
+   which breaks that ">" match and silently drops back to body's hardcoded
+   color. This covers that case directly off the scheme class itself,
+   regardless of nesting depth. Scoped to "main" (not the bare global
+   classes, which are also used site-wide on <body> for the manual
+   light/dark toggle and would collide with its own hardcoded color) and
+   kept at 1-class + 1-element specificity deliberately, so it stays a
+   fallback default and never outranks a component's own more specific
+   `.foo.dark-scheme`/`.foo.light-scheme` contrast override. */
+main .dark-scheme {
+  color: var(--color-light);
+}
+
+main .light-scheme {
+  color: var(--color-dark);
 }
 
 /* ── data-columns: split a section at its column-separator ── */

@@ -377,16 +377,36 @@ h4,
 h5,
 h6 {
   font-family: var(--font-heading-stack);
-  font-weight: 700;
+  font-weight: 900;
   line-height: var(--heading-line-height);
 }
 
 h1 { font-size: var(--heading-font-size-xxl); }
-h2 { font-size: var(--heading-font-size-xl); }
+h2 { font-size: var(--heading-font-size-xl); 
+  strong { font-size: 3.5rem; font-weight: 900; }}
 h3 { font-size: var(--heading-font-size-l); }
 h4 { font-size: var(--heading-font-size-m); }
 h5 { font-size: var(--heading-font-size-s); }
 h6 { font-size: var(--heading-font-size-xs); }
+
+h2 ~ h2 {
+  margin-top: -1.2rem;
+}
+
+/* <em> inside an H2 reads as a colored highlight (e.g. "Committed to
+   *Transparent Government*"). On a dark section, --secondary is blended
+   toward white for legibility, same technique as the hero's accent lift —
+   except here the section's own .dark-scheme/.light-scheme ancestor class
+   is a reliable signal (a real rendered background, unlike the hero's
+   photo), so no JS luminance probe is needed. */
+main .dark-scheme h2 em {
+  color: color-mix(in srgb, var(--accent) 55%, white);
+  font-style: normal;
+}
+
+main .light-scheme h2 em {
+  color: var(--accent);
+}
 
 strong {
   font-weight: 600;

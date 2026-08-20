@@ -3,13 +3,18 @@ export default function init(el) {
   inner.classList.add('card-inner');
   const pic = el.querySelector('picture');
   if (pic) {
-    const picPara = pic.closest('p');
-    if (picPara) {
+    // Picture is usually authored as its own <p> (a dedicated table row/
+    // cell), but content can also land with it as a bare wrapping <div>
+    // instead (e.g. pasted/rebuilt content) — handle both, otherwise a
+    // bare-div picture is left unclassed and gets mistaken for the content
+    // div below (which itself would then be left with no styling at all).
+    const picWrap = pic.closest('p') || (pic.parentElement !== inner ? pic.parentElement : null);
+    if (picWrap) {
       const picDiv = document.createElement('div');
       picDiv.className = 'card-picture-container';
       picDiv.append(pic);
       inner.insertAdjacentElement('afterbegin', picDiv);
-      picPara.remove();
+      picWrap.remove();
     }
   }
   // Decorate content
