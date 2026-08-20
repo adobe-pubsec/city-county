@@ -201,6 +201,63 @@ header {
   position: fixed;
 }
 
+/* ── Breadcrumbs ── global for any interior page, see
+   scripts/utils/breadcrumbs.js. Was previously duplicated per-template. ── */
+.breadcrumbs {
+  background: var(--accent);
+  border-bottom: 1px solid var(--secondary);
+
+  /* --secondary/--primary (text) is dark with no guaranteed contrast to
+     --accent (bg) — wash the bg out toward white rather than override the
+     branded text color (class applied via JS, see breadcrumbs.js). */
+  &.bg-needs-wash {
+    background: color-mix(in srgb, var(--accent) 25%, white);
+  }
+
+  ol {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.125rem;
+    list-style: none;
+    margin: 0 auto;
+    padding: 0.75rem var(--container-pad);
+    max-width: var(--container-max);
+  }
+
+  li {
+    display: flex;
+    align-items: center;
+    font-family: var(--font-body-stack);
+    font-size: 0.8125rem;
+    color: var(--secondary);
+
+    &:not(:last-child)::after {
+      content: '/';
+      margin: 0 0.375rem;
+      color: var(--secondary);
+    }
+
+    &[aria-current='page'] {
+      color: var(--primary);
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 28ch;
+
+      @media (width >= 600px) { max-width: 50ch; }
+    }
+  }
+
+  a {
+    color: var(--secondary);
+    text-decoration: none;
+    transition: color 0.15s;
+    &:hover { color: var(--primary); text-decoration: underline; }
+  }
+}
+
 a {
   color: var(--color-link);
 

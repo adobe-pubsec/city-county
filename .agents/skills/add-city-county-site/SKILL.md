@@ -412,7 +412,11 @@ Goal: replace the blueprint placeholder in the copied header fragment
    - Find every `<a>` in the header's brand section — the one wrapping the
      logo image and the one wrapping (or shared with) the site name text may
      be the same anchor or two separate ones; update whichever exist.
-   - Set each one's `href` to the site-base index: `/sites/{{SLUG}}`.
+   - Set each one's `href` to the site-base index **with a trailing
+     slash**: `/sites/{{SLUG}}/`. Without the trailing slash the path
+     doesn't resolve (confirmed: `/sites/{{SLUG}}` 404s, `/sites/{{SLUG}}/`
+     doesn't) — this bit both the header link and the global breadcrumbs'
+     Home link (see `scripts/utils/breadcrumbs.js`) before being caught.
    - Do this regardless of what the blueprint originally authored there
      (`/`, `/blueprint`, `/blueprint/`, or anything else) — don't rely on
      the Step 4 rewrite to have already fixed it.
@@ -564,7 +568,8 @@ Tell the user:
 | Images broken in the DA editor / bare `/media_<hash>` refs | Blanket host-strip wrongly made image refs root-relative | Rewrite `media_*` refs to `main--{{REPO}}--{{ORG}}.aem.live/media_*` (Step 4, images branch) — never leave them root-relative |
 | New site still says "City County Government" | Placeholder entity name not replaced | Apply the Step 4 entity `sed` (longest-first) to header, footer, index |
 | Copied pages still say `/blueprint/...` | Path rewrite skipped | Grep copied content for `/blueprint` and fix |
-| Clicking the logo/site name goes to the wrong site (or 404s) | Home link was authored root-relative (`href="/"`) with no `/blueprint` substring for Step 4's blanket rewrite to catch | Explicitly set the brand section's anchor(s) `href` to `/sites/{{SLUG}}` (Step 6b.7) — don't rely on the blanket rewrite |
+| Clicking the logo/site name goes to the wrong site (or 404s) | Home link was authored root-relative (`href="/"`) with no `/blueprint` substring for Step 4's blanket rewrite to catch | Explicitly set the brand section's anchor(s) `href` to `/sites/{{SLUG}}/` — **with a trailing slash** (Step 6b.7) — don't rely on the blanket rewrite |
+| Breadcrumb "Home" link 404s | `site-base` (e.g. `/sites/{{SLUG}}`) has no trailing slash, and that path alone doesn't resolve | Already fixed in `scripts/utils/breadcrumbs.js` (appends `/`) — if it recurs elsewhere, apply the same trailing-slash fix |
 | News/events articles still read like generic filler ("the county...") | Step 5b's locality reword pass was skipped or only caught the exact Step 4 tokens | Re-read each fallback article and reword locality mentions to `{{ENTITY}}` in context |
 | New site's news/events pages don't show up in listings or search | Not previewed (Step 5c), or `path` doesn't actually sit under `/sites/{{SLUG}}/news/` or `/events/` | Preview the specific page path; confirm it matches the `helix-query.yaml` include glob `/sites/*/news/**` or `/sites/*/events/**` |
 | Metadata write corrupts the sheet / other rows vanish | Wrote a bare array instead of the sheet envelope | Preserve `{data, :type:"sheet", …}`; see **da-content** |

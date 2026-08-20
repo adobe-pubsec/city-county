@@ -1,5 +1,6 @@
 import { loadArea, setConfig } from './ak.js';
 import applySiteTheme from './utils/site-theme.js';
+import buildBreadcrumbs from './utils/breadcrumbs.js';
 
 const hostnames = ['authorkit.dev'];
 
@@ -44,6 +45,9 @@ export async function loadPage() {
   // colors and never re-check.
   await applySiteTheme();
   await loadArea();
+
+  // Global, for any interior page — see scripts/utils/breadcrumbs.js
+  await buildBreadcrumbs();
 
   // Load template JS if a template is specified (AK only loads template CSS)
   const templateMeta = document.head.querySelector('meta[name="template"]');
