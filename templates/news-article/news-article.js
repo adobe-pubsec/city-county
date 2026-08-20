@@ -59,7 +59,7 @@ function buildHero() {
   return hero;
 }
 
-function buildByline(anchor) {
+async function buildByline(anchor) {
   const h1 = document.querySelector('main h1');
   if (!h1) return;
 
@@ -70,8 +70,9 @@ function buildByline(anchor) {
   const byline = document.createElement('div');
   byline.className = 'article-byline';
 
+  let tag;
   if (tagMeta) {
-    const tag = document.createElement('span');
+    tag = document.createElement('span');
     tag.className = 'article-tag';
     tag.textContent = tagMeta.content;
     byline.append(tag);
@@ -102,10 +103,18 @@ function buildByline(anchor) {
   }
 
   (anchor || h1).after(byline);
+
+  // --accent (tag bg) has no guaranteed contrast relationship with
+  // --primary (tag text) — must run after insertion so getComputedStyle
+  // resolves the actual rendered background.
+  if (tag) {
+    const { applySelfColorScheme } = await import('../../blocks/section-metadata/section-metadata.js');
+    applySelfColorScheme(tag);
+  }
 }
 
 export default async function init() {
   await buildBreadcrumbs();
   const hero = buildHero();
-  buildByline(hero);
+  await buildByline(hero);
 }

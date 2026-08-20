@@ -1,3 +1,5 @@
+import { getColorSchemeForValue } from '../../scripts/utils/color-scheme.js';
+
 function setBackgroundFocus(img) {
   const { title } = img.dataset;
   if (!title?.includes('data-focal')) return;
@@ -64,5 +66,16 @@ export default async function init(el) {
     const bg = rows.pop();
     bg.classList.add('hero-background');
     decorateBackground(bg);
+  }
+
+  // The heading's <em> is colored with --accent, but the default (non-
+  // .light) scrim over the background photo is a fixed dark navy regardless
+  // of the site's own colors. If the site's accent is *also* a dark color
+  // (e.g. a dark green), it can read poorly against that scrim — there's no
+  // rendered background to sample here (it's a photo), so test the accent
+  // value on its own instead. The .light variant's scrim is light, so a
+  // dark accent already reads fine there and doesn't need this.
+  if (!el.classList.contains('light') && getColorSchemeForValue('var(--accent)') === 'dark-scheme') {
+    el.classList.add('accent-needs-lift');
   }
 }

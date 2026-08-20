@@ -67,6 +67,13 @@
   }
 }
 
+/* --primary/--secondary (bg, incl. hover) are site-specific with no
+   guaranteed contrast to a fixed white — pick readable text off the
+   button's actual rendered background instead (class applied + recomputed
+   on hover/focus via JS, see search-results.js). */
+.sr-btn.light-scheme { color: var(--color-dark); }
+.sr-btn.dark-scheme { color: var(--color-light); }
+
 /* ── Status line ── */
 .sr-status {
   font-family: var(--font-body-stack);
@@ -123,6 +130,12 @@
     color: var(--primary);
     border-radius: 2px;
     padding: 0 2px;
+
+    /* --accent has no guaranteed contrast relationship with --primary —
+       pick readable text off the mark's actual computed background
+       (class applied via JS, see search-results.js). */
+    &.light-scheme { color: var(--color-dark); }
+    &.dark-scheme { color: var(--color-light); }
   }
 }
 
@@ -138,6 +151,12 @@
     border-radius: 2px;
     padding: 0 2px;
     font-weight: 600;
+
+    /* --accent has no guaranteed contrast relationship with --primary —
+       pick readable text off the mark's actual computed background
+       (class applied via JS, see search-results.js). */
+    &.light-scheme { color: var(--color-dark); }
+    &.dark-scheme { color: var(--color-light); }
   }
 }
 

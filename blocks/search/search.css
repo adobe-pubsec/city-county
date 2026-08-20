@@ -95,6 +95,13 @@
   }
 }
 
+/* --primary/--secondary (bg, incl. hover) are site-specific with no
+   guaranteed contrast to a fixed white — pick readable text off the
+   button's actual rendered background instead (class applied + recomputed
+   on hover/focus via JS, see search.js). */
+.search-btn.light-scheme { color: var(--color-dark); }
+.search-btn.dark-scheme { color: var(--color-light); }
+
 @media (width >= 480px) {
   .search-btn {
     padding: 0 1.25rem;
@@ -172,6 +179,9 @@
   color: #fff;
 
   &:hover { background: var(--secondary); }
+
+  &.light-scheme { color: var(--color-dark); }
+  &.dark-scheme { color: var(--color-light); }
 }
 
 /* Taller input on hero */

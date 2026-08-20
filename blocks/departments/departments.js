@@ -1,3 +1,5 @@
+import { applySelfColorScheme } from '../../scripts/utils/color-scheme.js';
+
 export default function init(el) {
   const rows = [...el.querySelectorAll(':scope > div')];
   if (rows.length < 1) return;
@@ -73,6 +75,18 @@ export default function init(el) {
 
   el.innerHTML = '';
   el.append(left, grid);
+
+  // --secondary (default bg) and --accent (hover bg) are both site-specific
+  // with no guaranteed contrast to the assumed text color — recompute on
+  // every bg change (initial render, hover, focus).
+  const primaryBtn = el.querySelector('.dept-btn-primary');
+  if (primaryBtn) {
+    const refreshBtnScheme = () => applySelfColorScheme(primaryBtn);
+    refreshBtnScheme();
+    ['mouseenter', 'mouseleave', 'focus', 'blur'].forEach((evt) => {
+      primaryBtn.addEventListener(evt, refreshBtnScheme);
+    });
+  }
 }
 
 function buildCard({ picture, h3, link }) {

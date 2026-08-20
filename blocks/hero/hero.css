@@ -118,6 +118,14 @@
     }
   }
 
+  /* The site's --accent is a dark color and the default scrim over the
+     background photo is a fixed dark navy — a dark accent can disappear
+     against it. Lighten it just enough to stay legible while still reading
+     as the brand color (class applied via JS, see hero.js). */
+  &.accent-needs-lift .hero-heading em {
+    color: color-mix(in srgb, var(--accent) 55%, white);
+  }
+
   /* ── Focal point helpers ── */
   &.hero-text-start img { object-position: 10% 50%; }
   &.hero-text-end   img { object-position: 90% 50%; }

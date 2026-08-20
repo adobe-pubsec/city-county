@@ -1,3 +1,5 @@
+import { applySelfColorScheme } from '../../scripts/utils/color-scheme.js';
+
 export default function init(el) {
   const paras = [...el.querySelectorAll('p')].map((p) => p.textContent.trim()).filter(Boolean);
   const placeholder = paras[0] || 'Search city services, departments, news, and more...';
@@ -35,4 +37,14 @@ export default function init(el) {
   `;
 
   el.append(form);
+
+  // --primary/--secondary (bg, incl. hover) are site-specific with no
+  // guaranteed contrast to the fixed white text — recompute on every bg
+  // change (initial render, hover, focus).
+  const btn = form.querySelector('.search-btn');
+  const refreshBtnScheme = () => applySelfColorScheme(btn);
+  refreshBtnScheme();
+  ['mouseenter', 'mouseleave', 'focus', 'blur'].forEach((evt) => {
+    btn.addEventListener(evt, refreshBtnScheme);
+  });
 }

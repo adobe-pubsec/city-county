@@ -10,6 +10,7 @@
   --fc-button-hover-border-color: var(--secondary);
   --fc-button-active-bg-color: var(--secondary);
   --fc-button-active-border-color: var(--secondary);
+  --fc-button-text-color: #fff;
   --fc-event-bg-color: var(--primary);
   --fc-event-border-color: var(--primary);
   --fc-event-text-color: #fff;
@@ -41,6 +42,12 @@
     &:focus {
       box-shadow: 0 0 0 2px var(--accent);
     }
+
+    /* --primary/--secondary (bg, incl. hover/active) are site-specific with
+       no guaranteed contrast to the fixed --fc-button-text-color default —
+       recomputed on every bg change via JS (see events-calendar.js). */
+    &.light-scheme { color: var(--color-dark); }
+    &.dark-scheme { color: var(--color-light); }
   }
 
   .fc-daygrid-day-number,
@@ -60,6 +67,12 @@
   .fc-event {
     cursor: pointer;
     border-radius: var(--radius-lg);
+
+    /* --primary (bg) is site-specific with no guaranteed contrast to the
+       fixed --fc-event-text-color default — recomputed per-event via
+       eventDidMount (see events-calendar.js). */
+    &.light-scheme { color: var(--color-dark); }
+    &.dark-scheme { color: var(--color-light); }
   }
 
   .fc-list-event-title a {

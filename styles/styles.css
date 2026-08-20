@@ -263,6 +263,21 @@ a {
       background: transparent;
     }
   }
+
+  /* --primary/--secondary/--accent (solid button bg) are site-specific with
+     no guaranteed contrast to a fixed white — pick readable text off the
+     button's actual rendered background instead (class applied via JS,
+     see scripts/ak.js decorateButton). Scoped to .btn specifically so this
+     doesn't affect a plain link that happens to inherit a scheme class from
+     an ancestor section background (see setColorScheme). Safe no-op on
+     .btn-outline (transparent background, no computed match). */
+  &.btn.light-scheme {
+    color: var(--color-dark);
+  }
+
+  &.btn.dark-scheme {
+    color: var(--color-light);
+  }
 }
 
 /* sections */

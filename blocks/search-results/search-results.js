@@ -1,5 +1,6 @@
 import { filterBySite } from '../../scripts/utils/query-index.js';
 import { getSiteBase } from '../../scripts/utils/site-config.js';
+import { applySelfColorScheme } from '../../scripts/utils/color-scheme.js';
 
 const INDEX_URL = '/query-index.json';
 const PAGE_SIZE = 10;
@@ -98,7 +99,18 @@ export default async function init(el) {
   const terms = query.toLowerCase().split(/\s+/).filter(Boolean);
 
   el.innerHTML = '';
-  el.append(buildForm(query));
+  const form = buildForm(query);
+  el.append(form);
+
+  // --primary/--secondary (bg, incl. hover) are site-specific with no
+  // guaranteed contrast to the fixed white text — recompute on every bg
+  // change (initial render, hover, focus).
+  const btn = form.querySelector('.sr-btn');
+  const refreshBtnScheme = () => applySelfColorScheme(btn);
+  refreshBtnScheme();
+  ['mouseenter', 'mouseleave', 'focus', 'blur'].forEach((evt) => {
+    btn.addEventListener(evt, refreshBtnScheme);
+  });
 
   const status = document.createElement('p');
   status.className = 'sr-status';
@@ -144,6 +156,11 @@ export default async function init(el) {
     const page = results.slice(shown, shown + PAGE_SIZE);
     page.forEach((item) => list.append(renderResult(item, terms, siteBase, siteLabel)));
     shown += page.length;
+
+    // --accent (mark bg) has no guaranteed contrast relationship with
+    // --primary (mark text) — pick readable text off each mark's actual
+    // rendered background instead.
+    list.querySelectorAll('mark').forEach(applySelfColorScheme);
 
     if (moreBtn) {
       if (shown >= results.length) {

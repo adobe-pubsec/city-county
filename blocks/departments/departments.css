@@ -63,6 +63,13 @@
   }
 }
 
+/* --secondary (default bg) and --accent (hover bg) are both site-specific
+   with no guaranteed contrast to the assumed text color — pick readable
+   text off the button's actual rendered background instead (class applied
+   + recomputed on hover/focus via JS, see departments.js). */
+.dept-btn-primary.light-scheme { color: var(--color-dark); }
+.dept-btn-primary.dark-scheme { color: var(--color-light); }
+
 .dept-btn-outline {
   display: inline-flex;
   align-items: center;

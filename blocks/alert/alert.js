@@ -1,3 +1,5 @@
+import { applySelfColorScheme } from '../section-metadata/section-metadata.js';
+
 const ICONS = { warning: 'warning', info: 'info', error: 'error' };
 
 function getVariant(el) {
@@ -74,6 +76,11 @@ export default function init(el) {
   // in place.
   document.body.prepend(el);
   updateHeight(el);
+
+  // The bar's background is --primary/--secondary/--error, all site-specific
+  // (except --error) — pick readable text off its actual rendered background
+  // rather than assuming white always works.
+  applySelfColorScheme(el);
 
   // Keep --alert-height in sync when the bar wraps on narrow viewports
   if (typeof ResizeObserver !== 'undefined') {

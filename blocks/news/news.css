@@ -85,6 +85,12 @@
   white-space: nowrap;
 }
 
+/* --accent is site-specific and has no guaranteed contrast relationship
+   with --primary — force readable text based on the tag's actual computed
+   background luminance (class applied via JS, see news.js). */
+.news-tag.light-scheme { color: var(--color-dark); }
+.news-tag.dark-scheme { color: var(--color-light); }
+
 .news-date {
   font-family: var(--font-body-stack);
   font-size: 0.75rem;

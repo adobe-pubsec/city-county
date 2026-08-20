@@ -65,6 +65,20 @@
   margin-top: 0.125rem;
 }
 
+/* --accent is site-specific and has no guaranteed contrast relationship
+   with --primary/--secondary — force readable text based on the chip's
+   actual computed background luminance (class applied via JS to these
+   spans directly, see events.js / setColorScheme). */
+.ec-day.light-scheme,
+.ec-month.light-scheme {
+  color: var(--color-dark);
+}
+
+.ec-day.dark-scheme,
+.ec-month.dark-scheme {
+  color: var(--color-light);
+}
+
 /* ── Event body ── */
 .ec-event-body {
   display: flex;

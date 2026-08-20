@@ -136,6 +136,12 @@
   letter-spacing: 0.05em;
 }
 
+/* --accent is site-specific and has no guaranteed contrast relationship
+   with --primary — force readable text based on the tag's actual computed
+   background luminance (class applied via JS, see news-article.js). */
+.article-tag.light-scheme { color: var(--color-dark); }
+.article-tag.dark-scheme { color: var(--color-light); }
+
 .article-date {
   font-family: var(--font-body-stack);
   font-size: 0.875rem;

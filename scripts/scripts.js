@@ -1,10 +1,6 @@
 import { loadArea, setConfig } from './ak.js';
 import applySiteTheme from './utils/site-theme.js';
 
-// Fire immediately (in parallel with page load) so the metadata.json fetch
-// isn't delayed behind it, minimizing the flash of default theme colors.
-applySiteTheme();
-
 const hostnames = ['authorkit.dev'];
 
 const locales = {
@@ -40,6 +36,13 @@ const decorateArea = ({ area = document }) => {
 
 export async function loadPage() {
   setConfig({ hostnames, locales, linkBlocks, components, decorateArea });
+  // Must resolve before decoration starts: contrast-aware components
+  // (buttons, pills, cards — see scripts/utils/color-scheme.js) read the
+  // site's --primary/--secondary/--accent via getComputedStyle the moment
+  // they're decorated, so the metadata.json override has to already be
+  // in <head> or they'll compute contrast against the pre-override default
+  // colors and never re-check.
+  await applySiteTheme();
   await loadArea();
 
   // Load template JS if a template is specified (AK only loads template CSS)

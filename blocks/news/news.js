@@ -1,4 +1,5 @@
 import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
+import { applySelfColorScheme } from '../section-metadata/section-metadata.js';
 
 async function fetchNews() {
   const url = resolveIndexUrl('news');
@@ -90,4 +91,9 @@ export default async function init(el) {
   }
 
   list.innerHTML = items.map(renderCard).join('');
+
+  // --accent (tag bg) has no guaranteed contrast relationship with
+  // --primary (tag text) — pick readable text off the tag's actual
+  // rendered background instead.
+  list.querySelectorAll('.news-tag').forEach(applySelfColorScheme);
 }

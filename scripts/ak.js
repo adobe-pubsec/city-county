@@ -10,6 +10,8 @@
  * governing permissions and limitations under the License.
  */
 
+import { applySelfColorScheme } from './utils/color-scheme.js';
+
 const LOG = async (ex, el) => (await import('./utils/error.js')).default(ex, el);
 
 export function getMetadata(name) {
@@ -151,6 +153,12 @@ function decorateButton(link) {
   }
   const toReplace = [isEm, isStrong, isStrike].find((el) => el?.parentNode === trueParent);
   if (toReplace) trueParent.replaceChild(link, toReplace);
+
+  // --primary/--secondary/--accent (solid button bg) are site-specific with
+  // no guaranteed contrast to the hardcoded white text in styles.css —
+  // pick readable text off the button's actual rendered background. A safe
+  // no-op on .btn-outline (transparent background, no computed match).
+  applySelfColorScheme(link);
 }
 
 export function localizeUrl({ config, url }) {

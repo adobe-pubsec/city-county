@@ -113,6 +113,12 @@
   margin-bottom: var(--spacing-xs);
 }
 
+/* --accent is site-specific and has no guaranteed contrast relationship
+   with --primary — force readable text based on the chip's actual computed
+   background luminance (class applied via JS, see event-detail.js). */
+.event-chip.light-scheme { color: var(--color-dark); }
+.event-chip.dark-scheme { color: var(--color-light); }
+
 .event-meta-item {
   display: flex;
   align-items: flex-start;

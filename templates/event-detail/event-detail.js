@@ -85,7 +85,7 @@ function timeFromDate(raw) {
   return formatHM(d.getHours(), d.getMinutes());
 }
 
-function buildEventInfoBar() {
+async function buildEventInfoBar() {
   const h1 = document.querySelector('main h1');
   if (!h1) return;
 
@@ -104,8 +104,9 @@ function buildEventInfoBar() {
 
   // Chip / category tag
   const tagMeta = document.head.querySelector('meta[property="article:tag"]');
+  let chip;
   if (tagMeta) {
-    const chip = document.createElement('span');
+    chip = document.createElement('span');
     chip.className = 'event-chip';
     chip.textContent = tagMeta.content;
     bar.append(chip);
@@ -146,6 +147,14 @@ function buildEventInfoBar() {
   }
 
   h1.after(bar);
+
+  // --accent (chip bg) has no guaranteed contrast relationship with
+  // --primary (chip text) — must run after insertion so getComputedStyle
+  // resolves the actual rendered background.
+  if (chip) {
+    const { applySelfColorScheme } = await import('../../blocks/section-metadata/section-metadata.js');
+    applySelfColorScheme(chip);
+  }
 }
 
 function buildAutoHero() {
@@ -193,5 +202,5 @@ function buildAutoHero() {
 export default async function init() {
   await buildBreadcrumbs();
   buildAutoHero();
-  buildEventInfoBar();
+  await buildEventInfoBar();
 }

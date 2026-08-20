@@ -58,12 +58,28 @@ body {
 .alert-icon {
   font-size: 1.25rem;
   font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
-  color: var(--accent);
+  color: #fff;
   flex-shrink: 0;
 }
 
-.alert.info  .alert-icon { color: var(--accent); }
 .alert.error .alert-icon { color: #ffdad6; }
+
+/* --primary/--secondary (bar bg) has no guaranteed contrast relationship
+   with a fixed white — pick readable text/icon/close-button color off the
+   bar's actual computed background luminance (class applied via JS, see
+   alert.js). --error is fixed, not site-specific, so white already always
+   works there; this only meaningfully changes the primary/info variants. */
+.alert.light-scheme .alert-text,
+.alert.light-scheme:not(.error) .alert-icon,
+.alert.light-scheme .alert-close {
+  color: var(--color-dark);
+}
+
+.alert.dark-scheme .alert-text,
+.alert.dark-scheme:not(.error) .alert-icon,
+.alert.dark-scheme .alert-close {
+  color: var(--color-light);
+}
 
 /* =============================================
    ALERTS — text

@@ -1,5 +1,6 @@
 import { getConfig } from '../../scripts/ak.js';
 import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
+import { applySelfColorScheme } from '../section-metadata/section-metadata.js';
 
 async function fetchEvents() {
   const url = resolveIndexUrl('events');
@@ -78,9 +79,25 @@ export default async function init(el) {
     eventDidMount: ({ event, el: eventEl }) => {
       const location = event.extendedProps.location;
       if (location) eventEl.setAttribute('title', location);
+      // --primary (event bg) is site-specific with no guaranteed contrast
+      // relationship to the fixed --fc-event-text-color: #fff default —
+      // pick readable text off the event's actual rendered background.
+      // Runs per-event via eventDidMount so it survives view/month changes.
+      applySelfColorScheme(eventEl);
     },
   });
   calendar.render();
+
+  // Toolbar buttons: --primary (default/active bg) and --secondary (hover
+  // bg) are both site-specific with no guaranteed contrast to fixed text —
+  // recompute on every background change (initial render, hover, focus).
+  const refreshButtonScheme = (btn) => applySelfColorScheme(btn);
+  calendarEl.querySelectorAll('.fc-button').forEach((btn) => {
+    refreshButtonScheme(btn);
+    ['mouseenter', 'mouseleave', 'focus', 'blur', 'click'].forEach((evt) => {
+      btn.addEventListener(evt, () => refreshButtonScheme(btn));
+    });
+  });
 
   // The block still carries `data-status="decorated"` (which styles.css
   // hides via display:none) while render() runs above, so FullCalendar
