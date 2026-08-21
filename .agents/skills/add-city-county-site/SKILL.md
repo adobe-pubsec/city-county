@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — typically invoked as just a URL, e.g. "Add a site for https://www.cityname.gov". Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.4.0"
+  version: "5.4.2"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -278,18 +278,36 @@ If found, for **news** and/or **events** independently:
 1. Pick **4–5 real, current items** — genuine headlines/titles, dates,
    descriptions. Never invent facts to fill the count; use fewer if that's
    all that's genuinely there.
-2. **Use an existing blueprint example as the structural mold.** Read one
-   already-cloned page at `/sites/{{SLUG}}/news/<slug>.html` (or
-   `/events/<slug>.html`) and mirror its exact shape — same Page Metadata
-   block keys (`Title`, `Description`, `Image`, `Publication Date`,
-   `Article:tag` for news; add `Start Date`/`Start Time`/`End Date`/
-   `End Time`/`Location` for events — check the actual example, don't
-   guess), same hero/lead-image placement, same body structure. Only the
-   *content* changes — title, dates, description, tags, location, body
-   copy, image. This is what `templates/news-article/news-article.js` and
+2. **Use the MATCHING blueprint example as the structural mold — news mold
+   for news, event mold for event. Do NOT cross-contaminate the two.** Read
+   one already-cloned page of the *same type* (`/sites/{{SLUG}}/news/<slug>.html`
+   for a news article, `/events/<slug>.html` for an event) and mirror **that
+   type's** exact shape. They are NOT interchangeable:
+   - **News** page-metadata keys: `Title`, `Description`, `Publication Date`,
+     `Article:tag`. The blueprint **news** examples have **NO
+     `section-metadata` block** — do not add one.
+   - **Event** page-metadata keys: `Title`, `Description`, `Start Date`,
+     `Start Time`, `End Date`, `End Time`, `Location`. The blueprint **event**
+     examples DO include a `<div class="section-metadata">` with
+     `style: container` + `spacing: xxl`.
+
+   > ⚠️ Lesson learned: copying the **event** mold's `section-metadata`
+   > (`style:container` / `spacing:xxl`) into a **news** article injects a
+   > large empty gap above the article's lead image (the `xxl` spacing).
+   > News articles must not carry that block. Always open the *same-type*
+   > example and copy its shape verbatim — don't reuse the block you happened
+   > to author for the other type.
+   > Also: **do NOT add an `Image` metadata row** (see item 4) — despite
+   > appearing intuitive, the news index derives the image from the in-body
+   > lead `<picture>`, and an explicit `Image` row breaks the listing
+   > thumbnails.
+
+   Mirror the same hero/lead-image placement and body structure; only the
+   *content* changes — title, dates, description, tags, location, body copy,
+   image. This is what `templates/news-article/news-article.js` and
    `templates/event-detail/event-detail.js` render, and what the
    `news`/`events` indices in `helix-query.yaml` select — matching the
-   existing shape keeps both working without guesswork.
+   correct same-type shape keeps both working without guesswork.
 3. Either **overwrite** one of the already-cloned blueprint example pages
    with real content (reusing its path), or **create additional pages** at
    `/sites/{{SLUG}}/news/<new-slug>.html` / `/events/<new-slug>.html` cloned
@@ -317,15 +335,33 @@ If found, for **news** and/or **events** independently:
       curl -s -X PUT -H "Authorization: Bearer $TOKEN" -F "data=@img.jpg;type=image/jpeg" \
         "https://admin.da.live/source/{{ORG}}/{{REPO}}/sites/{{SLUG}}/news/.<article-slug>/img.jpg"
       ```
-   4. **Reference it two ways** so it renders AND indexes:
-      - As the article's **lead `<picture>`/`<img>`** at the top of the body
-        (matching the blueprint example's hero placement), pointing at the
-        `content.da.live/.../news/.<article-slug>/img.jpg` URL.
-      - The `Image` row of the page-metadata block also resolves from this —
-        confirm the rendered page's `<head>` gets an `og:image` other than
-        `default-meta-image.png` (that's what the news index's `image`
-        property reads). If `og:image` still shows the default, the lead
-        image wasn't placed/authored correctly.
+   4. **Reference it as an in-body lead image ONLY — do NOT add an `Image`
+      metadata row.** Author the image as the article's **lead
+      `<picture>`/`<img>`** at the top of the body (matching the blueprint
+      example's hero placement), pointing at the
+      `content.da.live/.../news/.<article-slug>/img.jpg` source URL. EDS then
+      **auto-derives `og:image`** from that lead image and produces an
+      optimized `/sites/{{SLUG}}/news/media_<hash>.jpg?width=1200…` URL — which
+      is exactly what the news index's `image` property (and the listing
+      block) need.
+
+      > ⚠️ **Do NOT set a page-metadata `Image` row** to the `content.da.live`
+      > source URL (or any full URL). The blueprint's own news/event examples
+      > have **no** `Image` row for this reason. If you add one, the index's
+      > `image` property strips the host and keeps the path, turning
+      > `content.da.live/adobe-pubsec/city-county/sites/…/img.jpg` into
+      > `/adobe-pubsec/city-county/sites/…/img.jpg`; the listing block then
+      > prepends the host, yielding a broken `…aem.live/adobe-pubsec/…/img`
+      > that 404s. The `media_<hash>` optimized name is generated at render
+      > time and is **not knowable in advance**, so you cannot author a correct
+      > `Image` value up front — let EDS derive it. (Confirmed on
+      > `/sites/new-haven`: an explicit `Image` row broke every news-listing
+      > thumbnail; removing it fixed them.)
+
+      **Verify:** the rendered page's `<head>` `og:image` is an optimized
+      `…/sites/{{SLUG}}/news/media_<hash>.jpg?width=…` URL (not
+      `default-meta-image.png`, and not a `content.da.live`/`/adobe-pubsec/…`
+      path). Then confirm the homepage news-listing thumbnails actually load.
 
    Events images are optional (the blueprint event examples are largely
    image-free and the events listing renders fine without them), but if the
@@ -661,6 +697,8 @@ Tell the user:
 | News/events articles still read like generic filler ("the county...") | Step 5b's locality reword pass was skipped or only caught the exact Step 4 tokens | Re-read each fallback article and reword locality mentions to `{{ENTITY}}` in context |
 | Homepage news/events listing blocks are empty (but the individual article pages render fine) | The query indices rebuild on **publish**, not preview — so on `aem.page` the listings stay empty | **Publish** the pages to `aem.live` (Step 8); the `news-index.json`/`events-index.json` then populate and the listings fill in. Verify on the `aem.live` host, not `aem.page` |
 | News/events pages don't show up even after publish | `path` doesn't sit under `/sites/{{SLUG}}/news/` or `/events/`, or the `<head>` meta the index reads is missing | Confirm the path matches the `helix-query.yaml` include glob (`/sites/*/news/**`), and that the rendered page has `og:title`/`meta[name=description]`/`meta[name=publication-date]`/`article:tag` in `<head>` (they come from the page-metadata block) |
+| News-listing thumbnails 404 with a doubled path (`…aem.live/adobe-pubsec/city-county/sites/…/img`) | An explicit `Image` metadata row was set to the `content.da.live` source URL; the index stripped only the host, leaving `/adobe-pubsec/city-county/…`, and the listing prepended the host again | **Remove the `Image` metadata row** from the article (Step 5a.4). Author only the in-body lead `<picture>`; EDS auto-derives the correct optimized `media_<hash>` `og:image`. Re-preview + re-publish the article, then re-publish the homepage |
+| Large empty gap above a news article's lead image | The event mold's `section-metadata` (`style:container` / `spacing:xxl`) was copied into a news article — news examples have none | Remove the `<div class="section-metadata">` block from the news article (Step 5a.2); use the news example as the mold, not the event one. Re-publish |
 | Metadata write corrupts the sheet / other rows vanish | Wrote a bare array instead of the sheet envelope | Preserve `{data, :type:"sheet", …}`; see **da-content** |
 | Preview 404 for metadata | Used `/metadata` instead of `/metadata.json` | Preview `metadata.json` |
 | Preview 404 for a page | Path wasn't copied, or wrong branch | Re-check Step 3 output; branch is `main` |
