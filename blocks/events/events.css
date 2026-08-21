@@ -34,24 +34,14 @@
 .ec-date-chip {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
   width: 52px;
   min-height: 56px;
-  background: var(--accent);
-  border-top: 3px solid var(--primary);
+  background: var(--color-light);
+  border: 1px solid var(--primary);
   border-radius: var(--radius-xl);
   box-shadow: 0 1px 3px rgb(0 0 0 / 0.08);
-  padding: 0.25rem 0;
-}
-
-.ec-day {
-  font-family: var(--font-heading-stack);
-  font-size: 1.375rem;
-  font-weight: 800;
-  color: var(--primary);
-  line-height: 1;
+  overflow: hidden;
 }
 
 .ec-month {
@@ -60,23 +50,21 @@
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--secondary);
+  color: #fff;
+  background: var(--primary);
   line-height: 1;
-  margin-top: 0.125rem;
+  padding: 0.25rem 0;
+  text-align: center;
 }
 
-/* --accent is site-specific and has no guaranteed contrast relationship
-   with --primary/--secondary — force readable text based on the chip's
-   actual computed background luminance (class applied via JS to these
-   spans directly, see events.js / setColorScheme). */
-.ec-day.light-scheme,
-.ec-month.light-scheme {
-  color: var(--color-dark);
-}
-
-.ec-day.dark-scheme,
-.ec-month.dark-scheme {
-  color: var(--color-light);
+.ec-day {
+  font-family: var(--font-heading-stack);
+  font-size: 1.375rem;
+  font-weight: 800;
+  color: var(--primary);
+  line-height: 1;
+  text-align: center;
+  padding: 0.25rem 0;
 }
 
 /* ── Event body ── */

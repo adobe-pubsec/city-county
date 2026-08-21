@@ -1,5 +1,4 @@
 import { resolveIndexUrl, filterBySite } from '../../scripts/utils/query-index.js';
-import { setColorScheme } from '../section-metadata/section-metadata.js';
 
 const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -53,8 +52,8 @@ function renderEvent(item) {
   return `
     <a class="ec-event" href="${item.path}">
       <div class="ec-date-chip" aria-label="${month} ${day}">
-        <span class="ec-day">${day}</span>
         <span class="ec-month">${month}</span>
+        <span class="ec-day">${day}</span>
       </div>
       <div class="ec-event-body">
         <h3 class="ec-event-title">${item.title || item.path}</h3>
@@ -129,9 +128,4 @@ export default async function init(el) {
   } else {
     list.innerHTML = items.map(renderEvent).join('');
   }
-
-  // The chip's background is the site's own --accent, which has no
-  // guaranteed contrast relationship with --primary/--secondary — pick
-  // readable text off the chip's actual rendered background instead.
-  list.querySelectorAll('.ec-date-chip').forEach((chip) => setColorScheme(chip));
 }
