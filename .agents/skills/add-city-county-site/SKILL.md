@@ -1,10 +1,9 @@
-SKILL.md
 ---
 name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — typically invoked as just a URL, e.g. "Add a site for https://www.cityname.gov". Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.1.0"
+  version: "5.4.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -23,9 +22,12 @@ News and events are shared, cross-tenant query-indices
 (`/news-index.json`, `/events-index.json` — see `helix-query.yaml`), not
 per-site files. `scripts/utils/query-index.js`'s `filterBySite()` filters
 those combined indices down to the current site by `path` prefix at read
-time, so anything this skill publishes under `/sites/{{SLUG}}/news/**` or
-`/sites/{{SLUG}}/events/**` shows up automatically in that site's news
-blocks and search — no separate per-site index config needed.
+time, so anything this skill **publishes** under `/sites/{{SLUG}}/news/**` or
+`/sites/{{SLUG}}/events/**` shows up in that site's news blocks and search —
+no separate per-site index config needed. Note the emphasis on *publish*:
+the shared indices rebuild on **publish to `aem.live`**, not on preview (see
+Steps 5c and 8), so the homepage listing blocks stay empty until the site is
+published.
 
 ## Execution model — READ THIS FIRST
 
@@ -79,7 +81,7 @@ implemented — see `scripts/utils/site-theme.js`, `blocks/header/header.js`,
 2. Gather inputs (site URL or name/color sample)
 3. Enumerate & clone `/blueprint` → `/sites/<slug>` (docs **and** binaries)
 4. Rewrite paths, strip host prefixes, AND replace the placeholder entity name
-5. Populate news and events (real content if found, localized fallback if not)
+5. Populate news and events (real content + lead images; localized fallback if not) and PUBLISH them so the indices update
 6. Extract brand assets: 3-color palette, logo, and a location hero image
 7. Update `/metadata.json`
 8. Preview (and, once confirmed, publish)
@@ -294,9 +296,40 @@ If found, for **news** and/or **events** independently:
    from that same structural mold if you want more than the blueprint
    provided one-for-one. Slugify new filenames the same way as the site
    slug.
-4. **Images:** download from the source site and re-upload into the site's
-   media, same as the logo step (Step 6b) — don't hotlink a third party;
-   respect the size caps.
+4. **Every news article MUST have a lead image** — don't leave it imageless.
+   An article with no image falls back to the generic site default
+   (`default-meta-image.png`), which looks like filler in the news listing
+   and `og:image`. For each news article:
+   1. **Prefer the source article's own image.** When you open the real
+      article on the requester's site, grab its lead/hero image (`og:image`
+      meta, or the main `<img>` in the article body). Read it from the
+      rendered page so you get the real absolute URL.
+   2. **Fallback to a topical, freely-licensed image** if the source article
+      has none — search Wikimedia Commons for something that fits the
+      headline's subject (e.g. "public transit", "city council chamber",
+      "fire department", "public art") or the city itself. Use the same
+      Wikimedia Commons API path as the hero (Step 6c). Never fabricate or
+      hotlink; never leave it blank.
+   3. **Download and re-upload** into the article's own hidden media folder,
+      respecting the size caps (SVG ≤ 40 KB, raster ≤ 20 MB):
+      ```bash
+      curl -sL -A "Mozilla/5.0" "<image-url>" -o img.jpg
+      curl -s -X PUT -H "Authorization: Bearer $TOKEN" -F "data=@img.jpg;type=image/jpeg" \
+        "https://admin.da.live/source/{{ORG}}/{{REPO}}/sites/{{SLUG}}/news/.<article-slug>/img.jpg"
+      ```
+   4. **Reference it two ways** so it renders AND indexes:
+      - As the article's **lead `<picture>`/`<img>`** at the top of the body
+        (matching the blueprint example's hero placement), pointing at the
+        `content.da.live/.../news/.<article-slug>/img.jpg` URL.
+      - The `Image` row of the page-metadata block also resolves from this —
+        confirm the rendered page's `<head>` gets an `og:image` other than
+        `default-meta-image.png` (that's what the news index's `image`
+        property reads). If `og:image` still shows the default, the lead
+        image wasn't placed/authored correctly.
+
+   Events images are optional (the blueprint event examples are largely
+   image-free and the events listing renders fine without them), but if the
+   source event has a good image, attach it the same way.
 5. Dates: match whatever format the blueprint's own example already uses in
    its `Publication Date`/`Start Date` cell (see `tools/date-inserter` and
    the parsing comments in `blocks/news/news.js`/`blocks/events/events.js`
@@ -319,12 +352,10 @@ targeted pass on just `/sites/{{SLUG}}/news/**` and `/sites/{{SLUG}}/events/**`:
   statistics, addresses. Only reword the locality reference itself; leave
   the rest of the blueprint's placeholder narrative intact.
 
-### 5c. Publish so the shared indices pick it up
+### 5c. Preview the news/events pages
 
-`POST` a preview for every news/events path you touched in 5a/5b (new,
-overwritten, or reworded) — same preview call as Step 8, but do it here so
-`/news-index.json`/`/events-index.json` reflect the new site promptly
-rather than waiting for the final full-site preview pass:
+`POST` a **preview** for every news/events path you touched in 5a/5b (new,
+overwritten, or reworded) so the individual pages render on `aem.page`:
 
 ```bash
 curl -s -X POST -H "Authorization: Bearer $TOKEN" \
@@ -332,16 +363,54 @@ curl -s -X POST -H "Authorization: Bearer $TOKEN" \
 # repeat per news/events path touched
 ```
 
-Preview (not `aem.live` publish) is what populates the shared index on the
-`aem.page` domain — confirmed empirically when testing `/sites/wake-county`.
-Pushing to production `aem.live` still follows the same ask-before-publishing
-rule as the rest of this skill (Step 8) — these pages go live together with
-everything else, not ahead of it.
+> ⚠️ **The query indices (`/news-index.json`, `/events-index.json`) rebuild
+> on PUBLISH, not on preview.** Confirmed empirically on `/sites/raleigh`:
+> after preview, the individual article pages render correctly and carry the
+> right `<head>` meta, but the shared index stays empty and the homepage
+> news/events **listing blocks show nothing** until the pages are
+> **published to `aem.live`**. So previewing here is only enough to eyeball
+> each page — the rollup listings won't populate until Step 8's publish.
 
-**Verify:** fetch `/news-index.json` and `/events-index.json` and confirm
-rows with `path` under `/sites/{{SLUG}}/news/` and `/sites/{{SLUG}}/events/`
-appear, and spot-check that no fallback article still reads with obviously
-generic locality phrasing.
+**Also delete leftover blueprint filler.** If you sourced real content and
+created new slugs (rather than overwriting the blueprint example paths),
+`DELETE` the now-unused blueprint example pages so they don't show up as
+stray filler in the tenant's listings:
+
+```bash
+curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
+  "https://admin.da.live/source/{{ORG}}/{{REPO}}/sites/{{SLUG}}/news/<old-blueprint-slug>.html"
+# repeat for each leftover blueprint news/events example you replaced
+```
+
+### 5d. Publish the news/events so the indices update
+
+Because the query indices rebuild on **publish, not preview** (see the ⚠️
+above), **publish the news/events pages** (and `metadata.json`) as part of
+this step — this is permitted and expected: it's what makes the tenant's
+news/events **listing blocks** populate at all. Without it the demo homepage
+shows empty news/events sections. Use the `live` endpoint:
+
+```bash
+for p in <every news/events path you touched> metadata.json ; do
+  curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+    "https://admin.hlx.page/live/{{ORG}}/{{REPO}}/main/$p"
+done
+```
+
+Publishing the news/events content is a normal part of standing up the demo
+and does **not** require a separate confirmation gate — these are freshly
+created demo pages, not edits to a customer's production content. (The
+broader "publish the whole site" decision in Step 8 is still the user's
+call, but the news/events listings specifically need publishing to work, so
+do it here.)
+
+**Verify:** fetch
+`https://main--{{REPO}}--{{ORG}}.aem.live/news-index.json` and
+`…/events-index.json` and confirm rows with `path` under
+`/sites/{{SLUG}}/news/` and `/sites/{{SLUG}}/events/` appear. Then open
+`…aem.live/sites/{{SLUG}}/` and confirm the homepage news/events blocks
+render. Also spot-check each page that no fallback article still reads with
+obviously generic locality phrasing.
 
 ---
 
@@ -415,8 +484,8 @@ Goal: replace the blueprint placeholder in the copied header fragment
    - Set each one's `href` to the site-base index **with a trailing
      slash**: `/sites/{{SLUG}}/`. Without the trailing slash the path
      doesn't resolve (confirmed: `/sites/{{SLUG}}` 404s, `/sites/{{SLUG}}/`
-     doesn't) — this bit both the header link and the global breadcrumbs'
-     Home link (see `scripts/utils/breadcrumbs.js`) before being caught.
+     does) — this bit both the header link and the global breadcrumbs' Home
+     link (see `scripts/utils/breadcrumbs.js`) before being caught.
    - Do this regardless of what the blueprint originally authored there
      (`/`, `/blueprint`, `/blueprint/`, or anything else) — don't rely on
      the Step 4 rewrite to have already fixed it.
@@ -522,17 +591,35 @@ for p in sites/{{SLUG}}/index \
 done
 ```
 
-(News/events paths were already previewed in Step 5c — no need to repeat
-those here unless something changed since.)
+(The news/events pages were already previewed **and published** in Step 5c/5d
+so their listings populate — no need to repeat those here.)
 
-**Render check:** open
+**Render check (preview):** open
 `https://main--{{REPO}}--{{ORG}}.aem.page/sites/{{SLUG}}/` and confirm the
 page renders, the palette is applied (inspect `--primary`/`--secondary`/
-`--accent` on `:root`), the new logo shows, and the news/events blocks show
-the populated content.
+`--accent` on `:root`), and the new logo and hero show. Since Step 5d
+already published the news/events, you can also verify the populated
+listings on the **live** host: `…aem.live/sites/{{SLUG}}/`.
 
-**Publishing** to `aem.live` is production-visible — **ask the user to
-confirm** before publishing. Don't publish automatically.
+**Publishing the rest of the site** (homepage, header/footer, metadata) to
+`aem.live` is production-visible — **ask the user to confirm** before doing
+so. Don't publish the whole site automatically. Once confirmed, publish the
+remaining paths with the `live` endpoint:
+
+```bash
+for p in sites/{{SLUG}}/index \
+         sites/{{SLUG}}/fragments/nav/header \
+         sites/{{SLUG}}/fragments/nav/footer \
+         sites/{{SLUG}}/fragments/nav/header/languages \
+         metadata.json ; do
+  curl -s -X POST -H "Authorization: Bearer $TOKEN" \
+    "https://admin.hlx.page/live/{{ORG}}/{{REPO}}/main/$p"
+done
+```
+
+**Verify after publish:** open `…aem.live/sites/{{SLUG}}/` and confirm the
+homepage renders end-to-end — palette, logo, hero, and the populated
+news/events listing blocks.
 
 ---
 
@@ -550,8 +637,9 @@ Tell the user:
 >   or: left as the blueprint placeholder (no usable logo found)
 > - **Hero image:** a photo of {{ENTITY}} (source: {{IMAGE_SOURCE}}) —
 >   or: left as the blueprint placeholder (no suitable image found)
-> - **News/Events:** {{N}} real articles/events sourced from the requester's
->   site — or: blueprint examples retained with locality reworded to
+> - **News/Events:** {{N}} real articles (each with a lead image) / events
+>   sourced from the requester's site and **published** so the listings
+>   populate — or: blueprint examples retained with locality reworded to
 >   `{{ENTITY}}`
 >
 > Not yet published to production — let me know when you want that pushed live.
@@ -571,7 +659,8 @@ Tell the user:
 | Clicking the logo/site name goes to the wrong site (or 404s) | Home link was authored root-relative (`href="/"`) with no `/blueprint` substring for Step 4's blanket rewrite to catch | Explicitly set the brand section's anchor(s) `href` to `/sites/{{SLUG}}/` — **with a trailing slash** (Step 6b.7) — don't rely on the blanket rewrite |
 | Breadcrumb "Home" link 404s | `site-base` (e.g. `/sites/{{SLUG}}`) has no trailing slash, and that path alone doesn't resolve | Already fixed in `scripts/utils/breadcrumbs.js` (appends `/`) — if it recurs elsewhere, apply the same trailing-slash fix |
 | News/events articles still read like generic filler ("the county...") | Step 5b's locality reword pass was skipped or only caught the exact Step 4 tokens | Re-read each fallback article and reword locality mentions to `{{ENTITY}}` in context |
-| New site's news/events pages don't show up in listings or search | Not previewed (Step 5c), or `path` doesn't actually sit under `/sites/{{SLUG}}/news/` or `/events/` | Preview the specific page path; confirm it matches the `helix-query.yaml` include glob `/sites/*/news/**` or `/sites/*/events/**` |
+| Homepage news/events listing blocks are empty (but the individual article pages render fine) | The query indices rebuild on **publish**, not preview — so on `aem.page` the listings stay empty | **Publish** the pages to `aem.live` (Step 8); the `news-index.json`/`events-index.json` then populate and the listings fill in. Verify on the `aem.live` host, not `aem.page` |
+| News/events pages don't show up even after publish | `path` doesn't sit under `/sites/{{SLUG}}/news/` or `/events/`, or the `<head>` meta the index reads is missing | Confirm the path matches the `helix-query.yaml` include glob (`/sites/*/news/**`), and that the rendered page has `og:title`/`meta[name=description]`/`meta[name=publication-date]`/`article:tag` in `<head>` (they come from the page-metadata block) |
 | Metadata write corrupts the sheet / other rows vanish | Wrote a bare array instead of the sheet envelope | Preserve `{data, :type:"sheet", …}`; see **da-content** |
 | Preview 404 for metadata | Used `/metadata` instead of `/metadata.json` | Preview `metadata.json` |
 | Preview 404 for a page | Path wasn't copied, or wrong branch | Re-check Step 3 output; branch is `main` |
