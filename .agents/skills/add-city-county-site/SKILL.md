@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.6.0"
+  version: "5.7.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -83,6 +83,52 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | `gather-images.cjs <url> <dir> --stock "<place>"` | Step 6d | ~12 Adobe Stock comps + a few official-site photos (hero), Commons fallback; downloads locally |
 | `stock-images.cjs`, `site-images.cjs`, `commons-images.cjs` | (used by gather-images) | Per-source harvesters; usable standalone |
 | `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata |
+| `preflight.cjs` | Stage mode | Off-the-clock readiness check (DA token, preview API, AEM login + not hibernated, Stock, Wikipedia), ~1 s |
+| `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
+| `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
+| `place-nickname.cjs "<Wikipedia title>"` | Stage mode | Nickname/motto from the Wikipedia infobox for the localized hero line, ~0.3 s |
+
+---
+
+## Stage mode: the 5–7 minute live run (USE THIS for demos)
+
+Use this path whenever the run is a live demo or the user says "stage mode".
+It runs the scripts below instead of improvising Steps 3–5, and it runs work
+in parallel. The numbered Steps further down are the reference for what each
+script does and for manual recovery. Don't re-read them during a stage run.
+
+**Off the clock (before the audience picks):**
+```bash
+SK=/workspace/skills/add-city-county-site
+export DA_TOKEN=$(oauth-token adobe | tr -d '[:space:]')
+node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line first
+```
+
+**On the clock:**
+
+| t | Track | Command / action |
+|---|---|---|
+| 0:00 | main | `node $SK/scripts/resolve-place.cjs "<audience input>" --json`. If `verified-ambiguous`, show the options and let the audience pick. Decide `SLUG`, `ENTITY` (e.g. "City of Boise") and `STATE`. |
+| 0:10 | main, in background | `node $SK/scripts/gather-images.cjs <site> /tmp/$SLUG-img --stock "<Place, State>" --commons "<P373>" --want 12 &` |
+| 0:10 | main | `node $SK/scripts/place-nickname.cjs "<Wikipedia title>" --json` → choose the tagline (rules below). Get the real street address from the site footer if it's quick (one fetch); otherwise skip it. |
+| 0:20 | main | `node $SK/scripts/clone-blueprint.cjs --slug $SLUG --entity "$ENTITY" --tagline "<tagline>" [--address "<addr>"] --json` (~8 s, must exit 0) |
+| 0:30 | **sub-agent A** | News + events: `node $SK/scripts/news-events.cjs --site <site> --slug $SLUG --entity "$ENTITY" --images /tmp/$SLUG-img --tz <IANA tz> --publish --json` (hard cap 150 s; fills gaps from the blueprint automatically) |
+| 0:30 | **main (track B)** | Brand: palette (6a) and logo (6b) from the official site. Then the hero: upload the best official-site photo (c\*) as `/sites/$SLUG/.index/hero.jpg` (the cloned index already points there; no HTML edit needed). |
+| 0:30 | **main (track C)** | Look at `s01…s12` with `open --view --size 300x200`, pick 6, write the manifest, start `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json &`. AEM processing (~2–3 min) runs in the background. |
+| ~2:30 | main | Step 7: append the metadata row (GET → append → PUT → re-GET verify). |
+| ~2:45 | main | Preview in one batch: `index`, `fragments/nav/header`, `fragments/nav/footer`, `fragments/nav/header/languages`, `metadata.json`. Publish `metadata.json` only now, after the row exists. |
+| ~3:00 | main | Open `https://main--city-county--adobe-pubsec.aem.page/sites/$SLUG/` for the audience. Check: palette, logo, hero, 3 news, 3 events. |
+| ~4:00 | main | When `aem-assets.cjs` finishes, show `/content/dam/city-county/$SLUG/` in AEM Assets. Show the folder; don't rely on a live search, because the index can lag. |
+
+- **Sub-agents:** run sub-agent A with `agent` (or a scoop) and give it ONLY the one command above, plus "report the JSON summary". Every command already has its own timeout. If A hasn't reported by t+3:00, carry on; the site still renders, with fallback news.
+- **Card images:** keep the blueprint's card images as they are. Don't replace them with city photos.
+- **Tagline rules** (`--tagline`):
+  - The hero H1 becomes "<ENTITY>: *<tagline>*".
+  - If `heroable` has a nickname, use it: "Serving the City of Oaks", "Your Government in the Land of the Sky", "Proudly Serving the Elm City". Keep it under about 45 characters, and prefer an official nickname or a "City of X" form.
+  - If there's no nickname, write a short line from real landmarks you've already seen this run (Stock photo titles, the Wikipedia lead): "From Lake Tahoe to the High Desert". Use real place names only, and never invent a nickname or a motto.
+  - If you're unsure, leave out `--tagline` (the default line stays).
+- **Address:** without `--address`, the footer address line shows the entity name, never the placeholder.
+- **Fallback is fine on stage:** news-events marks those items `origin: "fallback"`. Say so out loud, and don't retry.
 
 ---
 
@@ -216,6 +262,13 @@ Store `{{ORG}}=adobe-pubsec`, `{{REPO}}=city-county`, `{{SLUG}}`, `{{ENTITY}}`.
 
 ## Step 3: Clone `/blueprint` → `/sites/<slug>` (docs AND binaries)
 
+> **Use `scripts/clone-blueprint.cjs`** (Steps 3–4 in one command, ~8 s, verified). It also handles
+> what the manual steps below miss: the DA list API does not return dot-folders, so it probes
+> `.<doc>/`, `.header/` and `.index/` and scans refs; `sed -E` has no lookahead; `chrome-extension://`
+> links; control characters; language-name mojibake; `{{ADDRESS}}`; `--tagline`.
+> By default it skips the blueprint's example articles (Step 5 writes fresh ones).
+> The manual description below is kept for reference and recovery.
+
 The blueprint contains **HTML documents AND binary media** (logos live in a
 hidden `.header/` folder as image files). A doc-only copy will leave the new
 site with broken/placeholder images. You must copy **both**.
@@ -330,6 +383,11 @@ are expected to remain — those are correct.)
 ---
 
 ## Step 5: Populate News and Events
+
+> **Use `scripts/news-events.cjs`**: real sourcing in parallel under a hard `--budget` (default 150 s),
+> automatic blueprint fallback per empty slot, exact molds, lead images, write + preview
+> (+ `--publish`). Typical: 2–7 s. `--source-only` for a dry look. Pass `--tz` for non-Eastern tenants.
+> The manual description below is kept for reference.
 
 Steps 3–4 already gave the new site *working* news/event pages — the
 blueprint's own example articles, cloned and generically de-placeholdered.
@@ -490,6 +548,8 @@ curl -s -X DELETE -H "Authorization: Bearer $TOKEN" \
 
 ### 5d. Publish the news/events so the indices update
 
+> Do **not** publish `metadata.json` here. Step 7 hasn't added this tenant's row yet. Publish it after Step 7.
+
 Because the query indices rebuild on **publish, not preview** (see the ⚠️
 above), **publish the news/events pages** (and `metadata.json`) as part of
 this step — this is permitted and expected: it's what makes the tenant's
@@ -600,6 +660,11 @@ Goal: replace the blueprint placeholder in the copied header fragment
 + home link fix.
 
 ### 6c. Hero background image
+
+> Since the Oct 23 blueprint, the hero points at `/blueprint/.index/hero.jpg`, so a clone already points
+> at `/sites/{{SLUG}}/.index/hero.jpg`. **Just upload the tenant photo to that path; no HTML edit needed.**
+> Until you upload it, the clone shows the blueprint's own skyline (copied by clone-blueprint). The legacy
+> instructions below apply only to tenants cloned before that change.
 Goal: replace the blueprint homepage's placeholder hero image with a real,
 attractive photo of the actual city/county, so the site looks authentic.
 
@@ -729,7 +794,7 @@ fails, that login is missing or expired.
    > by AEM's extraction, even though the write returns 200. Never set
    > metadata before `processed`. The script handles this; don't
    > "optimize" it away.
-5. **Verify:** the script exits 0 only if every asset is `processed`, no
+5. **Verify:** (exit 2 with every asset `processed` and no missing metadata = the search index is lagging; that's fine, re-check later.) The script exits 0 only if every asset is `processed`, no
    metadata is missing, and a full-text search for the entity's short name
    finds all of them. Report `assetsUrl` from its output. Dynamic Media
    (Scene7) sync happens automatically on this environment.
