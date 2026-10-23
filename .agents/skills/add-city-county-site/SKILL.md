@@ -1,9 +1,9 @@
 ---
 name: add-city-county-site
-description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (official site first, Wikimedia Commons to top up). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
+description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.5.0"
+  version: "5.6.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -80,8 +80,8 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | Script | Used in | Does |
 |---|---|---|
 | `resolve-place.cjs "<name>"` | Step 2 | Place name → official website (Wikipedia search → Wikidata P856), live-checked; flags ambiguity |
-| `gather-images.cjs <url> <dir>` | Step 6d | ~12 candidate photos: official site first, Commons top-up; downloads locally |
-| `site-images.cjs`, `commons-images.cjs` | (used by gather-images) | Per-source harvesters; usable standalone |
+| `gather-images.cjs <url> <dir> --stock "<place>"` | Step 6d | ~12 Adobe Stock comps + a few official-site photos (hero), Commons fallback; downloads locally |
+| `stock-images.cjs`, `site-images.cjs`, `commons-images.cjs` | (used by gather-images) | Per-source harvesters; usable standalone |
 | `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata |
 
 ---
@@ -657,8 +657,11 @@ attribution is required.
 ### 6d. AEM Assets folder with tenant photos (optional — when asked, or for the demo)
 
 Goal: a per-tenant folder in AEM Assets with **5–6 searchable photos** named
-for the city/county. Official-site photos first (the tenant's own imagery),
-Wikimedia Commons to fill the gaps. Default target for this demo: AEM author
+for the city/county. **Default source: Adobe Stock watermarked comp previews**
+(1000 px, no license consumed, no login needed; about 2–4 s for 12, with
+reliable skyline/landmark coverage even for counties). Official-site photos
+are gathered alongside for the homepage hero (6c). Wikimedia Commons is only a
+fallback when Stock returns too few. Default target for this demo: AEM author
 **program 129103, env 1259846**
 (`https://author-p129103-e1259846.adobeaemcloud.com`), folder
 **`/content/dam/city-county/{{SLUG}}/`**. It's a shared environment with
@@ -669,15 +672,21 @@ always use the `city-county/` parent.
 ride the browser's AEM session; there is no token step. If the CSRF call
 fails, that login is missing or expired.
 
-1. **Gather ~12 candidates** (about 30–60 s):
+1. **Gather candidates** (about 2–5 s; start it in the background as soon as
+   Step 2 resolves the site):
    ```bash
    node $SK/scripts/gather-images.cjs "<official site url>" /tmp/{{SLUG}}-img \
-     --commons "<Commons category from 2a>" --article "<Wikipedia title from 2a>" --want 12
+     --stock "<City or County, State>" --commons "<Commons category from 2a>" --want 12
    ```
-   Without 2a (URL given directly), the Commons category is usually the
-   Wikipedia title, e.g. "Asheville, North Carolina". It skips stock-agency
-   files (Shutterstock, iStock, Getty, Adobe Stock…), logos, staff and meeting
-   photos, tiny images, and resolves CMS-resized variants to originals (≤ 8 MB).
+   Output: `s01.jpg…s12.jpg` = Adobe Stock comps (filtered to horizontal place
+   photos: no vectors, maps, people, wildlife or disaster shots; series
+   duplicates collapsed); `c01…c04` = official-site photos (stock-agency files
+   are skipped there) for the hero. `--commons` is used only if Stock comes up short.
+   Stock comps are **watermarked previews and unlicensed** by design. Each record
+   keeps its `stockId`, so any of them can be licensed later in AEM's Adobe Stock
+   integration or on stock.adobe.com without re-picking.
+   Use `--stock` with the place name, not the URL. Leave out `--stock` to get
+   the older official-site-first behavior.
 2. **Look at them — required.** File names and alt text are not reliable:
    in testing, `…history_museum….jpg` was a meeting room and a top-ranked
    "park" photo was two golfers posing.
@@ -687,7 +696,8 @@ fails, that login is missing or expired.
    Pick **6**: places over people. Favor skyline, downtown, city hall or
    courthouse, landmarks, parks and water, and recognizable scenery. Drop
    crowds, posed people, signage, voting or office scenes, and near-duplicates.
-   Prefer official-site photos when they are as good.
+   For the AEM set, pick from the Stock comps (s\*). Reserve the best
+   official-site photo (c\*) for the hero.
 3. **Write a manifest** (`/tmp/{{SLUG}}-img/manifest.json`). Name every file
    `{{SLUG}}-<subject>.<ext>` (use the `ext` from `candidates.json`; sites
    serve PNGs too) and describe what you actually saw, not the file name:
@@ -700,8 +710,8 @@ fails, that login is missing or expired.
        "description": "<one sentence: what is in the photo and where>",
        "keywords": ["skyline", "downtown"],
        "source": "<candidate url (site) or Commons file page>",
-       "creator": "<'<Entity>' for official-site, artist for Commons>",
-       "rights": "<'<host>; internal Adobe demo use only' or '<license> via Wikimedia Commons; <file page>'>" } ] }
+       "creator": "<Stock: creator name | site: '<Entity>' | Commons: artist>",
+       "rights": "<Stock: 'Adobe Stock #<stockId> watermarked comp, unlicensed (demo preview)' | site: '<host>; internal Adobe demo use only' | Commons: '<license> via Wikimedia Commons; <file page>'>" } ] }
    ```
    The script adds `{{ENTITY}}`, its short name and `city-county-demo` to
    every asset's keywords.
@@ -724,9 +734,11 @@ fails, that login is missing or expired.
    finds all of them. Report `assetsUrl` from its output. Dynamic Media
    (Scene7) sync happens automatically on this environment.
 
-**Rights:** official-site photos are the city's/county's property, so treat
-them as demo-only (`dc:rights` says so). Commons photos keep their license and
-author. Stock-agency images are excluded automatically.
+**Rights:** Adobe Stock comps are unlicensed watermarked previews. Fine for the
+demo; license them (same `stockId`) before any public use. Official-site photos
+are the city's/county's property, so treat them as demo-only (`dc:rights` says so).
+Commons photos keep their license and author. Third-party stock-agency files
+on city sites are excluded automatically.
 
 ---
 

@@ -76,7 +76,7 @@ module.exports = { commonsImages };
 if (isMain(module)) {
   const args = process.argv.slice(2); const asJson = args.includes('--json');
   const ai = args.indexOf('--article'); const article = ai >= 0 ? args[ai + 1] : null;
-  const rest = args.filter((a, i) => a !== '--json' && i !== ai && i !== ai + 1);
+  const rest = args.filter((a, i) => a !== '--json' && !(ai >= 0 && (i === ai || i === ai + 1)));
   if (!rest[0]) { console.error('usage: commons-images.cjs "<Commons category>" [count] [--article "<title>"] [--json]'); process.exitCode = 1; }
   else commonsImages(rest[0], Number(rest[1] || 6), article).then((r) => {
     if (asJson) console.log(JSON.stringify(r, null, 2));

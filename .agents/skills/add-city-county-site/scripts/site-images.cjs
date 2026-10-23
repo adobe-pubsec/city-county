@@ -159,7 +159,7 @@ if (isMain(module)) {
   const args = process.argv.slice(2);
   const asJson = args.includes('--json');
   const pi = args.indexOf('--pages'); const maxPages = pi >= 0 ? Number(args[pi + 1]) : 2;
-  const pos = args.filter((a, i) => !a.startsWith('--') && i !== pi + 1);
+  const pos = args.filter((a, i) => !a.startsWith('--') && !(pi >= 0 && i === pi + 1));
   if (!pos[0]) { console.error('usage: site-images.cjs <siteUrl> [count] [--pages N] [--json]'); process.exitCode = 1; }
   else siteImages(pos[0], Number(pos[1] || 6), maxPages).then((r) => {
     if (asJson) console.log(JSON.stringify(r, null, 2));
