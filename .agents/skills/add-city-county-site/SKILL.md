@@ -1,9 +1,9 @@
 ---
 name: add-city-county-site
-description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — typically invoked as just a URL, e.g. "Add a site for https://www.cityname.gov". Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
+description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.4.2"
+  version: "5.6.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -73,16 +73,62 @@ implemented — see `scripts/utils/site-theme.js`, `blocks/header/header.js`,
 - **scrape-webpage** — for sourcing real news/events content and brand
   extraction from the requester's URL (Steps 5 and 6a).
 
+**Bundled scripts** (`scripts/`, Node CommonJS, no dependencies; each runs as
+a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
+`/workspace/skills/add-city-county-site` — and call `node $SK/scripts/<name>.cjs`:
+
+| Script | Used in | Does |
+|---|---|---|
+| `resolve-place.cjs "<name>"` | Step 2 | Place name → official website (Wikipedia search → Wikidata P856), live-checked; flags ambiguity |
+| `gather-images.cjs <url> <dir> --stock "<place>"` | Step 6d | ~12 Adobe Stock comps + a few official-site photos (hero), Commons fallback; downloads locally |
+| `stock-images.cjs`, `site-images.cjs`, `commons-images.cjs` | (used by gather-images) | Per-source harvesters; usable standalone |
+| `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata |
+
+---
+
+## Prerequisite Check — RUN BEFORE ANYTHING ELSE
+
+Before starting Step 0, verify that the required companion skills are
+installed. These skills live in a **separate repo** and are NOT bundled
+with this skill — they must be installed independently.
+
+```bash
+# Check for required companion skills
+MISSING=""
+[ ! -f /workspace/skills/da-content/SKILL.md ] && MISSING="$MISSING da-content"
+[ ! -f /workspace/skills/da-auth/SKILL.md ] && MISSING="$MISSING da-auth"
+
+if [ -n "$MISSING" ]; then
+  echo "ERROR: Required companion skill(s) not installed:$MISSING"
+  echo ""
+  echo "Install them with:"
+  [ ! -f /workspace/skills/da-content/SKILL.md ] && echo "  upskill adobe/skills --skill da-content"
+  [ ! -f /workspace/skills/da-auth/SKILL.md ] && echo "  upskill adobe/skills --skill da-auth"
+  echo ""
+  echo "Optional (but recommended for sourcing real news/events content):"
+  [ ! -f /workspace/skills/scrape-webpage/SKILL.md ] && echo "  upskill adobe/skills --skill scrape-webpage"
+  echo ""
+  echo "Once installed, restart this skill."
+  exit 1
+fi
+echo "All required companion skills present."
+```
+
+**Do NOT proceed past this point if any required skill is missing.** The
+`da-content` skill contains the DA Source API contract, sheet JSON format,
+binary upload rules, and content-model constraints that this skill depends on
+throughout. Without it, Steps 3–7 will produce malformed content.
+
 ---
 
 ## Step 0: Create a TodoList
 
 1. Authenticate to DA
-2. Gather inputs (site URL or name/color sample)
+2. Gather inputs (site URL, or a place name → resolve its official site)
 3. Enumerate & clone `/blueprint` → `/sites/<slug>` (docs **and** binaries)
 4. Rewrite paths, strip host prefixes, AND replace the placeholder entity name
 5. Populate news and events (real content + lead images; localized fallback if not) and PUBLISH them so the indices update
-6. Extract brand assets: 3-color palette, logo, and a location hero image
+6. Extract brand assets: 3-color palette, logo, and a location hero image (+ optional AEM Assets folder, Step 6d)
 7. Update `/metadata.json`
 8. Preview (and, once confirmed, publish)
 9. Hand off
@@ -129,6 +175,30 @@ https://www.wake.gov". That one URL does triple duty:
 
 Don't ask for separate samples for any of the above when a URL was given —
 extract everything from it.
+
+### 2a. Given a place name instead of a URL (e.g. an audience suggestion)
+
+Resolve the official site — don't guess a domain:
+
+```bash
+node $SK/scripts/resolve-place.cjs "Fairfax County"     # add --json for machine output
+```
+
+It searches Wikipedia (Wikidata's own search is unreliable for place names),
+reads each hit's Wikidata item, keeps **US** cities/counties/towns, takes the
+**P856 official website**, and checks it is live. Also returns the Commons
+category (P373) and Wikipedia title — keep both for Step 6d.
+
+- `status: verified` → use `best.website` as the Step 2 URL and continue.
+- `status: verified-ambiguous` (e.g. "Springfield"; "Fairfax County" vs.
+  the City of Fairfax) → **show the user the best match and the alternates and
+  ask which one.** In a live demo, let the audience pick.
+- `needs-pick` / `no-us-place` / `not-found` → ask for a state or a URL
+  ("Paris" is rejected; "Paris, Texas" works).
+
+Many county sites are not `.gov` — don't reject a result for its TLD.
+
+### 2b. Fallbacks
 
 Only fall back to explicit questions if no URL is given (named site with no
 link, hex codes provided directly, or a logo image attached). Never invent
@@ -553,6 +623,9 @@ shared placeholder. Give each tenant its own image:
    curl -s -A "Mozilla/5.0" \
      "https://commons.wikimedia.org/w/api.php?action=query&format=json&prop=imageinfo&iiprop=url|size&iiurlwidth=1920&titles=<File:Title>"
    ```
+   **If Step 6d will run, run its `gather-images.cjs` first** and reuse the best
+   official-site skyline/landmark pick as the hero (the tenant's own photo beats
+   a stranger's).
    Prefer a landscape/wide crop (the hero is wide); avoid portrait or tiny
    images. If nothing suitable is found, leave the placeholder rather than
    using a poor image.
@@ -580,6 +653,92 @@ page, not by fetching the source path.
 **Attribution:** for a demo this is fine as-is; if the image will be shown
 publicly, note the source/license (the Wikimedia file page) in case
 attribution is required.
+
+### 6d. AEM Assets folder with tenant photos (optional — when asked, or for the demo)
+
+Goal: a per-tenant folder in AEM Assets with **5–6 searchable photos** named
+for the city/county. **Default source: Adobe Stock watermarked comp previews**
+(1000 px, no license consumed, no login needed; about 2–4 s for 12, with
+reliable skyline/landmark coverage even for counties). Official-site photos
+are gathered alongside for the homepage hero (6c). Wikimedia Commons is only a
+fallback when Stock returns too few. Default target for this demo: AEM author
+**program 129103, env 1259846**
+(`https://author-p129103-e1259846.adobeaemcloud.com`), folder
+**`/content/dam/city-county/{{SLUG}}/`**. It's a shared environment with
+colleagues' top-level folders (several city/county names already exist), so
+always use the `city-county/` parent.
+
+**Before a live run:** log in to that author in the leader browser. Uploads
+ride the browser's AEM session; there is no token step. If the CSRF call
+fails, that login is missing or expired.
+
+1. **Gather candidates** (about 2–5 s; start it in the background as soon as
+   Step 2 resolves the site):
+   ```bash
+   node $SK/scripts/gather-images.cjs "<official site url>" /tmp/{{SLUG}}-img \
+     --stock "<City or County, State>" --commons "<Commons category from 2a>" --want 12
+   ```
+   Output: `s01.jpg…s12.jpg` = Adobe Stock comps (filtered to horizontal place
+   photos: no vectors, maps, people, wildlife or disaster shots; series
+   duplicates collapsed); `c01…c04` = official-site photos (stock-agency files
+   are skipped there) for the hero. `--commons` is used only if Stock comes up short.
+   Stock comps are **watermarked previews and unlicensed** by design. Each record
+   keeps its `stockId`, so any of them can be licensed later in AEM's Adobe Stock
+   integration or on stock.adobe.com without re-picking.
+   Use `--stock` with the place name, not the URL. Leave out `--stock` to get
+   the older official-site-first behavior.
+2. **Look at them — required.** File names and alt text are not reliable:
+   in testing, `…history_museum….jpg` was a meeting room and a top-ranked
+   "park" photo was two golfers posing.
+   ```bash
+   open --view --size 300x200 /tmp/{{SLUG}}-img/c01.jpg /tmp/{{SLUG}}-img/c02.jpg …
+   ```
+   Pick **6**: places over people. Favor skyline, downtown, city hall or
+   courthouse, landmarks, parks and water, and recognizable scenery. Drop
+   crowds, posed people, signage, voting or office scenes, and near-duplicates.
+   For the AEM set, pick from the Stock comps (s\*). Reserve the best
+   official-site photo (c\*) for the hero.
+3. **Write a manifest** (`/tmp/{{SLUG}}-img/manifest.json`). Name every file
+   `{{SLUG}}-<subject>.<ext>` (use the `ext` from `candidates.json`; sites
+   serve PNGs too) and describe what you actually saw, not the file name:
+   ```json
+   { "host": "https://author-p129103-e1259846.adobeaemcloud.com",
+     "parent": "city-county", "parentTitle": "City-County Demo",
+     "slug": "{{SLUG}}", "entity": "{{ENTITY}}, <State>",
+     "images": [ { "file": "/tmp/{{SLUG}}-img/c03.jpg", "name": "{{SLUG}}-skyline.jpg",
+       "title": "<Entity> skyline at dusk",
+       "description": "<one sentence: what is in the photo and where>",
+       "keywords": ["skyline", "downtown"],
+       "source": "<candidate url (site) or Commons file page>",
+       "creator": "<Stock: creator name | site: '<Entity>' | Commons: artist>",
+       "rights": "<Stock: 'Adobe Stock #<stockId> watermarked comp, unlicensed (demo preview)' | site: '<host>; internal Adobe demo use only' | Commons: '<license> via Wikimedia Commons; <file page>'>" } ] }
+   ```
+   The script adds `{{ENTITY}}`, its short name and `city-county-demo` to
+   every asset's keywords.
+4. **Upload** (≈ 3–4 min for 6 images, mostly AEM processing; start it early
+   in a live demo and continue with Step 7/8 while it runs):
+   ```bash
+   node $SK/scripts/aem-assets.cjs /tmp/{{SLUG}}-img/manifest.json
+   ```
+   It creates the folders (409 = already exists, fine), uploads all images in
+   parallel (direct binary upload: `initiateUpload` → PUT → `completeUpload`),
+   **waits for `dam:assetState=processed`**, then writes `dc:title`,
+   `dc:description`, `dc:subject`, `dc:creator`, `dc:source`, `dc:rights`
+   and re-reads them.
+   > Metadata written while an asset is still processing is **silently wiped**
+   > by AEM's extraction, even though the write returns 200. Never set
+   > metadata before `processed`. The script handles this; don't
+   > "optimize" it away.
+5. **Verify:** the script exits 0 only if every asset is `processed`, no
+   metadata is missing, and a full-text search for the entity's short name
+   finds all of them. Report `assetsUrl` from its output. Dynamic Media
+   (Scene7) sync happens automatically on this environment.
+
+**Rights:** Adobe Stock comps are unlicensed watermarked previews. Fine for the
+demo; license them (same `stockId`) before any public use. Official-site photos
+are the city's/county's property, so treat them as demo-only (`dc:rights` says so).
+Commons photos keep their license and author. Third-party stock-agency files
+on city sites are excluded automatically.
 
 ---
 
@@ -673,6 +832,9 @@ Tell the user:
 >   or: left as the blueprint placeholder (no usable logo found)
 > - **Hero image:** a photo of {{ENTITY}} (source: {{IMAGE_SOURCE}}) —
 >   or: left as the blueprint placeholder (no suitable image found)
+> - **AEM Assets** (if Step 6d ran): `/content/dam/city-county/{{SLUG}}/`,
+>   {{K}} photos ({{S}} from the official site, {{C}} from Wikimedia Commons),
+>   searchable by "{{ENTITY}}"
 > - **News/Events:** {{N}} real articles (each with a lead image) / events
 >   sourced from the requester's site and **published** so the listings
 >   populate — or: blueprint examples retained with locality reworded to
@@ -706,6 +868,10 @@ Tell the user:
 | Logo blurry/oversized | Low-res or pre-scaled thumbnail used | Re-locate the real nav logo / SVG, not a favicon |
 | Logo squished/cropped | `logo-is` not matched to aspect ratio | Set `logo-is` from intrinsic width/height |
 | Hero still shows the placeholder skyline | Hero `<picture>` refs not rewritten (absolute `content.da.live` URLs, untouched by the Step 4 rewrites) | Replace all 3 firefly refs with the tenant's `.index/hero.jpg` content URL (Step 6c); re-preview |
+| `resolve-place` picks the wrong place or says ambiguous | Common names ("Springfield", "Fairfax") | Show the alternates and let the user choose; or re-run with the state ("Springfield, Illinois") |
+| `aem-assets`: "no CSRF token" | Not logged in to the AEM author in this browser, or session expired | Open the author URL in the leader browser, log in, re-run (folders/uploads are idempotent; existing names get new versions) |
+| AEM asset metadata empty after upload | Metadata was written while `dam:assetState` was still `processing` | Re-run only the metadata part after processing (`aem-assets.cjs` waits automatically) |
+| `gather-images` finds < 6 usable photos | Site serves only thumbnails or blocks bots; no Commons category passed | Pass `--commons`/`--article` from Step 2a; Commons tops up automatically |
 | Hero image 404 at `.index/hero.jpg` | Expected — EDS serves an optimized `media_<hash>` URL, not the raw path | Verify on the rendered page, not the source path |
 
 ## Reference
