@@ -609,7 +609,7 @@ async function enrichNewsRaw(ctx, cands, signal) {
 // Stage-safe filter: a live audience watches these headlines appear, so skip crime, violence,
 // death and disaster stories (title + description). Real but unpleasant news falls through to the
 // next-most-recent item; if too few remain, the per-slot blueprint fallback fills in.
-const SENSITIVE = /\b(arrest(ed|s)?|suspects?|charged|indict(ed|ment)|homicides?|murders?|kill(ed|ing|s)?|shoot(ing|ings|er)?|shot|stabb(ed|ing)|assault(ed|s)?|sexual|exploitation|abuse|traffick\w*|kidnap\w*|fatal(ity|ities)?|dies|died|death|deaths|deceased|overdose|officer[- ]involved|CIRT|manhunt|missing (child|person|teen|man|woman)|amber alert|lawsuit|sued|scandal|investigation into|crash(es)?|wreck|explosion|evacuat\w*|lockdown)\b/i;
+const SENSITIVE = /\b(arrest(ed|s)?|suspects?|charged|indict(ed|ment)|convict(ed|ion)|sentenc(ed|ing)|homicides?|murder(ed|s)?|manslaughter|kill(ed|ing|s)?|shoot(ing|ings|er)?|shots? fired|gunfire|stabb(ed|ing)|assault(ed|s)?|sexual|exploitation|abuse|traffick\w*|kidnap\w*|abduct\w*|fatal(ity|ities|ly)?|dies|died|death|deaths|deceased|bod(y|ies) (found|recovered)|overdoses?|officer[- ]involved|CIRT|manhunt|missing|at[- ]risk (adult|child|person|juvenile|teen)|have you seen|amber alert|silver alert|endangered (person|adult|child)|lawsuits?|sued|scandal|investigation into|crash(es|ed)?|collisions?|wreck(age|ed)?|plane|airplane|aircraft|helicopter|NTSB|derail\w*|explosions?|evacuat\w*|lockdown|threat|wildfire|hostage|police (ask|asks|seek|seeks|search|searching|investigat\w*)|public'?s help (in )?(identify|locat|find)\w*)\b/i;
 const isSensitive = (c) => SENSITIVE.test(`${c.title || ''} ${c.description || ''}`);
 function pickRecentNews(ctx, cands) {
   const seen = new Set();
