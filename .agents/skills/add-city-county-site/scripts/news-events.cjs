@@ -606,11 +606,196 @@ async function enrichNewsRaw(ctx, cands, signal) {
     return normNews({ title, date, description, bodyParagraphs: paragraphs, leadImageUrl: image && image.url, leadImageThumb: image && image.thumb, leadImageAlt: image && image.alt, sourceUrl: c.link, categories: tags, tz: ctx.tz }, c.strategy);
   });
 }
+// Stage-safe filter: a live audience watches these headlines appear, so skip crime, violence,
+// death and disaster stories (title + description). Real but unpleasant news falls through to the
+// next-most-recent item; if too few remain, the per-slot blueprint fallback fills in.
+const SENSITIVE = /\b(arrest(ed|s)?|suspects?|charged|indict(ed|ment)|homicides?|murders?|kill(ed|ing|s)?|shoot(ing|ings|er)?|shot|stabb(ed|ing)|assault(ed|s)?|sexual|exploitation|abuse|traffick\w*|kidnap\w*|fatal(ity|ities)?|dies|died|death|deaths|deceased|overdose|officer[- ]involved|CIRT|manhunt|missing (child|person|teen|man|woman)|amber alert|lawsuit|sued|scandal|investigation into|crash(es)?|wreck|explosion|evacuat\w*|lockdown)\b/i;
+const isSensitive = (c) => SENSITIVE.test(`${c.title || ''} ${c.description || ''}`);
 function pickRecentNews(ctx, cands) {
   const seen = new Set();
-  return cands.filter((c) => c.title && c.date && c.date <= addDays(ctx.today, 1) && dayDiff(ctx.today, c.date) <= 180)
+  return cands.filter((c) => !isSensitive(c)).filter((c) => c.title && c.date && c.date <= addDays(ctx.today, 1) && dayDiff(ctx.today, c.date) <= 180)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
     .filter((c) => { const k = normKey(c.title); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+
+// ============================================================== OpenCities (Granicus) helpers
+// OpenCities pages are server-rendered ASP.NET ("seamless" script manager, OpenCities.CustomControls,
+// body classes content-type-oc-*, images under /files/assets|sharedassets|content/... with ?dimension=).
+// No public RSS/iCal: listings are .list-item-container cards, the homepage has profile-*-listing
+// panels, details carry .oc-page-title, .published-on, .main-page-image, li.multi-date-item[data-start-*].
+const isOpenCities = (html) => /seamless_script_manager|OpenCities\.CustomControls|\bcontent-type-oc-[a-z]|\.opencities\.com\b/i.test(html || '')
+  || (/\/files\/(?:assets|sharedassets|content)\/[^"'\s]*\?dimension=/i.test(html || '') && /\boc-[a-z]/.test(html || ''));
+const OC_NEWS_LIST = /^(news-articles|news|all-news|latest-news|news-releases|press-releases|newsroom|news-and-media|media-releases|city-news|county-news)$/;
+const OC_EVENT_LIST = /^(events|events-directory|event-directory|event-calendar|events-calendar|community-calendar|city-calendar|county-calendar|calendar|whats-on|upcoming-events)$/;
+const OC_NEWS_DEEP = /^\/(news-articles|news|newsroom|news-releases|press-releases)\/.+/i;
+const OC_EVENT_DEEP = /^\/(event-folder|events-directory|events|community-calendar|city-calendar|whats-on|event-calendar)\/.+/i;
+const ocAttr = (tag, a) => (tag.match(new RegExp(`\\b${a}=["']([^"']*)["']`, 'i')) || [])[1];
+const ocText = (h) => stripTags(cleanCtl(String(h || '')));
+// WYSIWYG bodies often use <div> blocks instead of <p> (pasted from Outlook): treat block boundaries as paragraphs.
+// Bullet lists (charge sheets, agenda items, date lists) are dropped: they read badly as article paragraphs.
+const ocBlocks = (h) => `<p>${String(h || '').replace(/<(ul|ol|table)\b[\s\S]*?<\/\1>/gi, '</p><p>').replace(/<\/?(?:p|div|section|h[1-6]|blockquote)\b[^>]*>|<hr\b[^>]*>/gi, '</p><p>')}</p>`;
+// Full-size OpenCities image URL: drop ?dimension=…&w=…&h=… (the original is served without it).
+function ocImage(html, base, cls) {
+  const re = cls ? new RegExp(`<img\\b[^>]*class=["'][^"']*\\b${cls}\\b[^"']*["'][^>]*>`, 'i') : /<img\b[^>]*>/i;
+  const tag = (html.match(re) || [])[0];
+  const src = tag && (ocAttr(tag, 'data-src') || ocAttr(tag, 'src'));
+  if (!src || src.startsWith('data:')) return null;
+  const thumb = absUrl(src, base);
+  if (!thumb || BAD_IMG.test(thumb)) return null;
+  const u = new URL(thumb);
+  for (const k of ['dimension', 'w', 'h', 'width', 'height', 'mode', 'crop', 'quality']) u.searchParams.delete(k);
+  let alt = squish(decodeEntities(ocAttr(tag, 'alt') || ''));
+  if (/^[\w .-]+\.(jpe?g|png|webp|gif)$/i.test(alt) || /logo|seal|icon/i.test(alt)) alt = '';
+  return { url: u.href, thumb, alt };
+}
+// Keep the original only when it resolves as an image under the size cap; else the sized variant.
+async function ocResolveImage(img, signal) {
+  if (!img) return null;
+  if (img.url === img.thumb) return img;
+  const r = await fx(img.url, { method: 'HEAD', as: 'none', timeout: 4000, signal });
+  if (r.ok && /^image\//i.test(r.ct) && (!r.len || r.len <= MAX_IMAGE)) return img;
+  return { url: img.thumb, alt: img.alt, thumb: img.thumb };
+}
+// The page's own template region (between OpenCities' normalTemplateStart/End markers).
+function ocMain(html) {
+  const s = html.indexOf('<!--normalTemplateStart-->');
+  if (s < 0) { const i = html.search(/<div\b[^>]*id=["']main-content["']/i); return i >= 0 ? sliceEl(html, i) : ''; }
+  const e = html.indexOf('<!--normalTemplateEnd-->', s);
+  return html.slice(s, e > s ? e : undefined);
+}
+// Cards from a listing page (.list-item-container) or a homepage panel (a.profile-list).
+function ocCards(html, base) {
+  const out = [];
+  const push = (b, href) => {
+    const link = href && absUrl(href, base);
+    if (!link || !/^https?:/i.test(link)) return;
+    const title = ocText((b.match(/<h[23]\b[^>]*>([\s\S]*?)<\/h[23]>/i) || [])[1]);
+    if (!title) return;
+    const pub = ocText((b.match(/<p\b[^>]*class=["'][^"']*published-on[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) || [])[1]);
+    const bd = b.match(/class=["']part-date["'][^>]*>\s*(\d{1,2})[\s\S]*?class=["']part-month["'][^>]*>\s*([A-Za-z]{3,})[\s\S]*?class=["']part-year["'][^>]*>\s*(\d{4})/i);
+    const evDate = ocText((b.match(/<p\b[^>]*class=["'][^"']*event-date[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) || [])[1]);
+    const desc = ocText((b.match(/class=["']list-item-block-desc["'][^>]*>([\s\S]*?)<\/span>/i) || [])[1])
+      || ocText(([...b.matchAll(/<p\b(?![^>]*class=["'][^"']*(?:published-on|event-date|tagged-as|oc-thumbnail|list-item-address|clearfix))[^>]*>([\s\S]*?)<\/p>/gi)].pop() || [])[1]);
+    const address = ocText((b.match(/<p\b[^>]*class=["'][^"']*list-item-address[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) || [])[1]);
+    const tags = ocText((b.match(/class=["']text["'][^>]*>([\s\S]*?)<\/span><\/p>/i) || [])[1]).split(/\s*,\s*/).filter(Boolean);
+    out.push({ link, title, pub: /published on/i.test(pub) ? pub.replace(/^published on\s*/i, '') : '', blockDate: bd ? `${bd[1]} ${bd[2]} ${bd[3]}` : (evDate || ''), desc, address, tags, image: ocImage(b, base) });
+  };
+  for (const m of html.matchAll(/<div\b[^>]*class=["'][^"']*\blist-item-container\b[^"']*["'][^>]*>/gi)) {
+    const b = sliceEl(html, m.index);
+    push(b, ocAttr((b.match(/<a\b[^>]*href=[^>]*>/i) || [''])[0], 'href'));
+  }
+  for (const m of html.matchAll(/<a\b[^>]*class=["'][^"']*\bprofile-list\b[^"']*["'][^>]*>/gi)) {
+    const b = sliceEl(html, m.index);
+    push(b, ocAttr(m[0], 'href'));
+  }
+  return out;
+}
+// Listing URLs from the homepage: "View more news/events" panel buttons, nav links whose last
+// segment is a listing name, and the first segment of deep article/event links.
+function ocListings(home, kind) {
+  const base = home.url;
+  const host = new URL(base).hostname;
+  const nameRe = kind === 'news' ? OC_NEWS_LIST : OC_EVENT_LIST;
+  const deepRe = kind === 'news' ? OC_NEWS_DEEP : OC_EVENT_DEEP;
+  const textRe = kind === 'news' ? /\bnews\b/i : /\b(events?|calendar)\b/i;
+  const scored = new Map();
+  const add = (u, s) => { if (u && (scored.get(u) || 0) < s) scored.set(u, s); };
+  for (const m of home.html.matchAll(/<a\b[^>]*class=["'][^"']*panel-button[^"']*["'][^>]*>([\s\S]*?)<\/a>/gi)) {
+    const u = absUrl(ocAttr(m[0], 'href') || '', base);
+    if (u && textRe.test(ocText(m[1])) && sameSite(new URL(u).hostname, host)) add(u.replace(/#.*$/, ''), 3);
+  }
+  for (const l of links(home.html, base)) {
+    const u = new URL(l.href);
+    if (!sameSite(u.hostname, host) || /opencities\.com$/i.test(u.hostname) || u.search) continue;
+    const segs = u.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
+    const last = (segs[segs.length - 1] || '').toLowerCase();
+    if (segs.length && segs.length <= 3 && nameRe.test(last)) add(u.href, segs.length === 1 ? 2 : 1);
+    if (deepRe.test(u.pathname) && segs.length >= 2) add(`${u.origin}/${segs[0]}`, 1);
+  }
+  return [...scored.entries()].sort((a, b) => b[1] - a[1] || a[0].length - b[0].length).map(([u]) => u);
+}
+// News article detail -> { title, date, paragraphs, image, tags }
+function ocParseArticle(html, url, tz) {
+  const main = ocMain(html);
+  const h1 = main.search(/<h1\b[^>]*class=["'][^"']*oc-page-title/i);
+  let region = h1 >= 0 ? main.slice(h1) : main;
+  const stop = region.search(/<div\b[^>]*class=["'][^"']*(categories-list-container|oc-related|related-information|side-box)\b/i);
+  if (stop > 0) region = region.slice(0, stop);
+  const title = ocText((region.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) || [])[1]) || metaContent(html, 'og:title');
+  const pub = ocText((region.match(/<p\b[^>]*class=["'][^"']*published-on[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) || [])[1]);
+  const when = parseWhen(pub.replace(/^published on\s*/i, ''), tz);
+  const image = ocImage(region, url, 'main-page-image');
+  const body = region.replace(/<h1\b[\s\S]*?<\/h1>/i, '').replace(/<p\b[^>]*class=["'][^"']*published-on[\s\S]*?<\/p>/i, '').replace(/<picture\b[\s\S]*?<\/picture>/gi, '');
+  const tags = [...(main.match(/categories-list-container[\s\S]*?<\/ul>/i) || [''])[0].matchAll(/<li\b[^>]*>([\s\S]*?)<\/li>/gi)].map((m) => ocText(m[1]));
+  return { title, date: when && when.date, paragraphs: paragraphsFrom(ocBlocks(body)), image, tags };
+}
+// Event detail -> raw event (next upcoming occurrence in `tz`).
+function ocParseEvent(html, url, ctx) {
+  const main = ocMain(html);
+  const out = { sourceUrl: url, strategy: 'opencities' };
+  out.title = ocText((main.match(/<h1\b[^>]*class=["'][^"']*oc-page-title[^"']*["'][^>]*>([\s\S]*?)<\/h1>/i) || main.match(/<h1\b[^>]*>([\s\S]*?)<\/h1>/i) || [])[1]);
+  const now = tzParts(new Date(), ctx.tz);
+  const occ = [...main.matchAll(/<li\b[^>]*class=["'][^"']*multi-date-item[^"']*["'][^>]*>/gi)].map((m) => {
+    const g = (k) => ocAttr(m[0], `data-${k}`);
+    if (!g('start-year')) return null;
+    const sd = `${g('start-year')}-${pad(g('start-month'))}-${pad(g('start-day'))}`;
+    const ed = g('end-year') ? `${g('end-year')}-${pad(g('end-month'))}-${pad(g('end-day'))}` : sd;
+    const st = g('start-hour') != null ? `${pad(g('start-hour'))}:${pad(g('start-mins') || 0)}` : undefined;
+    const et = g('end-hour') != null ? `${pad(g('end-hour'))}:${pad(g('end-mins') || 0)}` : undefined;
+    const allDay = (!st || st === '00:00') && (!et || et === '23:59' || et === '00:00');
+    return { startDate: sd, endDate: ed, startTime: allDay ? undefined : st, endTime: allDay ? undefined : et };
+  }).filter(Boolean).filter((o) => o.startDate > ctx.today || (o.startDate === ctx.today && (!o.startTime || o.startTime >= now.time)))
+    .sort((a, b) => (a.startDate + (a.startTime || '')).localeCompare(b.startDate + (b.startTime || '')));
+  let o = occ[0];
+  if (!o) {
+    // single-date template: "Next date: Saturday, October 24, 2026 | 05:00 PM to 07:00 PM"
+    const ed = ocText((main.match(/<p\b[^>]*class=["'][^"']*event-date[^"']*["'][^>]*>([\s\S]*?)<\/p>/i) || [])[1]).replace(/^next date:\s*/i, '');
+    const w = parseWhen(ed, ctx.tz);
+    if (w) { const rng = parseClockRange(ed.replace(/\b\d{4}\b/g, '')); o = { startDate: w.date, startTime: rng.start, endTime: rng.end, endDate: rng.end ? w.date : undefined }; }
+  }
+  if (o) Object.assign(out, o);
+  // Location: the <p>s under <h2 class="sub-title">Location</h2>, minus map links and URLs.
+  const locM = main.match(/<h2\b[^>]*class=["'][^"']*sub-title[^"']*["'][^>]*>\s*(?:Location|Where|Venue)\s*<\/h2>([\s\S]*?)(?=<h2\b|<div\b)/i);
+  if (locM) {
+    const ps = [...locM[1].matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)].map((m) => ({ map: /maps\.google|View Map/i.test(m[1]), t: ocText(m[1].replace(/<a\b[^>]*>\s*View Map\s*<\/a>/gi, '')) }))
+      .map((p) => ({ ...p, t: p.t.replace(/,?\s*View Map\s*$/i, '').replace(/\s*,\s*,+/g, ',').replace(/,\s*$/, '').replace(/,\s*(\d{5}(?:-\d{4})?)\b/g, ' $1') }))
+      .filter((p) => p.t && !/https?:\/\/|zoom|teams\.microsoft|webex/i.test(p.t));
+    // the address paragraph (map link) wins; short notes ("Embarcadero Room") are kept, directions are not
+    const parts = ps.some((p) => p.map) ? ps.filter((p) => p.map || (p.t.length <= 40 && !/[.!?]$/.test(p.t))).map((p) => p.t) : ps.map((p) => p.t);
+    const segs = []; for (const s of parts.join(', ').split(/\s*,\s*/)) if (s && !segs.some((x) => x.toLowerCase() === s.toLowerCase())) segs.push(s);
+    out.location = segs.join(', ');
+  }
+  // Body: the description above the When/Location blocks; stop at the first sub-heading/accordion.
+  let body = main.replace(/<h1\b[\s\S]*?<\/h1>/i, '').replace(/<p\b[^>]*class=["'][^"']*event-date[\s\S]*?<\/p>/i, '').replace(/<picture\b[\s\S]*?<\/picture>/gi, '');
+  const cut = body.search(/<h2\b|<div\b[^>]*class=["'][^"']*(oc-wysiwyg-container|multi-date-list-container|side-box|categories-list-container)\b/i);
+  if (cut > 0) body = body.slice(0, cut);
+  // date-only occurrence (no data-start-hour): take the time written next to that date in the body
+  if (out.startDate && !out.startTime) {
+    const [, mo, da] = out.startDate.split('-').map(Number);
+    const txt = ocText(body.replace(/<br\s*\/?>/gi, ' '));
+    const at = txt.search(new RegExp(`\\b${MONTHS[mo - 1].slice(0, 3)}[a-z]*\\.?\\s+${da}\\b`, 'i'));
+    if (at >= 0) { const rng = parseClockRange(txt.slice(at, at + 90).replace(/\b\d{4}\b/g, '')); if (rng.start) { out.startTime = rng.start; out.endTime = rng.end; if (rng.end) out.endDate = out.startDate; } }
+  }
+  out.bodyParagraphs = paragraphsFrom(ocBlocks(body)).filter((p) => !/^(dates?|times?|location|where|when|cost|fees?|ages?|price|registration|event type|calendar)\s*:/i.test(p));
+  const img = ocImage(main, url, 'main-page-image');
+  if (img) { out.image = img.url; out.imageThumb = img.thumb; }
+  return out;
+}
+async function ocHome(ctx) {
+  const home = await ctx.home;
+  return home && isOpenCities(home.html) ? home : null;
+}
+// Fetch up to `max` listing pages (cached on ctx, shared by the news and event strategies).
+async function ocListingCards(ctx, home, kind, max = 3) {
+  const urls = ocListings(home, kind);
+  const guesses = (kind === 'news' ? ['/News-Articles', '/News'] : ['/Events-Directory', '/Events']).map((p) => ctx.origin + p);
+  const pages = urls.length ? urls.slice(0, max) : guesses;
+  const res = await Promise.all(pages.map((u) => ctx.get(u, { timeout: 9000 })));
+  const cards = ocCards(home.html, home.url).map((c) => ({ ...c, from: 'home' }));
+  const used = [];
+  res.forEach((r, i) => { if (r.ok && r.text && isOpenCities(r.text)) { const cs = ocCards(r.text, r.url); if (cs.length) used.push(pages[i]); cards.push(...cs); } });
+  const seen = new Set();
+  return { cards: cards.filter((c) => !seen.has(c.link) && seen.add(c.link)), used, pages };
 }
 
 const NEWS_STRATEGIES = {
@@ -679,6 +864,36 @@ const NEWS_STRATEGIES = {
     const cands = f.items.map((it) => ({ title: it.title, date: (parseWhen(it.pub, ctx.tz) || {}).date, link: it.link, description: stripTags(it.html), image: it.image ? { url: it.image, alt: '' } : null, cats: it.cats, strategy: 'civicplus' }));
     const recent = pickRecentNews(ctx, cands).slice(0, ctx.need * 2 + 1);
     return { items: (await enrichNews(ctx, recent, signal)).filter(Boolean), note: url };
+  },
+
+  async opencities(ctx, signal) {
+    const home = await ocHome(ctx);
+    if (!home) return { items: [], note: 'not OpenCities' };
+    const { cards, used, pages } = await ocListingCards(ctx, home, 'news');
+    const host = new URL(home.url).hostname;
+    const newsy = cards.filter((c) => {
+      const u = new URL(c.link);
+      if (!sameSite(u.hostname, host) || /\.(pdf|docx?|xlsx?)$/i.test(u.pathname)) return false;
+      return c.pub || OC_NEWS_DEEP.test(u.pathname);
+    }).map((c) => ({ ...c, date: (parseWhen(c.pub, ctx.tz) || {}).date }));
+    let pick = pickRecentNews(ctx, newsy).slice(0, ctx.need + 3);
+    if (pick.length < ctx.need) pick = [...pick, ...newsy.filter((c) => !c.date)].slice(0, ctx.need + 5);
+    const got = await pool(pick, 6, async (c) => {
+      const r = await fx(c.link, { timeout: 8000, signal });
+      if (!r.ok || !r.text || !/html/i.test(r.ct)) return null;
+      const a = isOpenCities(r.text) ? ocParseArticle(r.text, r.url, ctx.tz) : null;
+      const g = !a || a.paragraphs.length === 0 || !a.date ? parseArticle(r.text, r.url, ctx.tz) : null;
+      const t0 = normKey((a && a.title) || c.title || '');
+      const paragraphs = (a && a.paragraphs.length ? a.paragraphs : (g ? g.paragraphs : [])).filter((p) => normKey(p) !== t0);
+      const image = await ocResolveImage((a && a.image) || c.image || (g && g.image) || null, signal);
+      return normNews({
+        title: (a && a.title) || c.title || (g && g.title), date: (a && a.date) || c.date || (g && g.date),
+        description: c.desc && c.desc.length >= 40 ? c.desc : undefined, bodyParagraphs: paragraphs,
+        leadImageUrl: image && image.url, leadImageThumb: image && image.thumb, leadImageAlt: image && image.alt,
+        sourceUrl: r.url, categories: (a && a.tags.length ? a.tags : c.tags), tz: ctx.tz,
+      }, 'opencities');
+    });
+    return { items: pickRecentNews(ctx, got.filter(Boolean)), note: `listing: ${(used.length ? used : pages).join(' ')} (${newsy.length} cards)` };
   },
 
   async html(ctx, signal) {
@@ -853,6 +1068,42 @@ const EVENT_STRATEGIES = {
     // multi-week ranges (e.g. an academy Sep–Nov) are not "upcoming" items for a homepage
     const picked = upcoming(ctx, raws.filter((x) => !x.endDate || dayDiff(x.endDate, x.startDate) <= 3)).slice(0, ctx.need + 2);
     return { items: upcoming(ctx, await enrichEvents(ctx, picked, signal, { always: true })), note: url };
+  },
+
+  async opencities(ctx, signal) {
+    const home = await ocHome(ctx);
+    if (!home) return { items: [], note: 'not OpenCities' };
+    const { cards, used, pages } = await ocListingCards(ctx, home, 'events');
+    const host = new URL(home.url).hostname;
+    const evs = cards.filter((c) => c.blockDate && !c.pub && sameSite(new URL(c.link).hostname, host)).map((c) => {
+      const w = parseWhen(c.blockDate, ctx.tz);
+      return { ...c, startDate: w && w.date };
+    }).filter((c) => c.startDate && c.startDate >= ctx.today);
+    // listing order is by next date; read the detail pages for the real next occurrence/time/place
+    const byDate = evs.sort((a, b) => a.startDate.localeCompare(b.startDate) || (OC_EVENT_DEEP.test(new URL(b.link).pathname) - OC_EVENT_DEEP.test(new URL(a.link).pathname)));
+    const seen = new Set();
+    const pick = byDate.filter((c) => { const k = normKey(c.title); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, ctx.need + 4);
+    const got = await pool(pick, 7, async (c) => {
+      const r = await fx(c.link, { timeout: 8000, signal });
+      let raw = { title: c.title, startDate: c.startDate, location: c.address, bodyParagraphs: c.desc ? [c.desc] : [], sourceUrl: c.link, strategy: 'opencities' };
+      if (r.ok && r.text && /html/i.test(r.ct)) {
+        const p = isOpenCities(r.text) ? ocParseEvent(r.text, r.url, ctx) : null;
+        if (p && p.startDate) {
+          raw.rich = true;
+          raw = { ...raw, ...Object.fromEntries(Object.entries(p).filter(([, v]) => v && (!Array.isArray(v) || v.length))) };
+          if (!p.bodyParagraphs.length && c.desc) raw.bodyParagraphs = [c.desc];
+        } else if (p && !p.startDate && /multi-date-item|event-date/i.test(r.text)) return null; // only past occurrences left
+        else if (!p) { const g = parseEventPage(r.text, r.url, ctx.tz); if (g.bodyParagraphs && g.bodyParagraphs.length && !c.desc) raw.bodyParagraphs = g.bodyParagraphs; }
+      }
+      const e = normEvent(raw, 'opencities');
+      return e && { e, rich: !!raw.rich };
+    });
+    // prefer events whose detail page is a real OpenCities event (time + place); cards that link off-site
+    // (e.g. ActiveNet registrations) only fill the remaining slots
+    const rich = upcoming(ctx, got.filter((x) => x && x.rich).map((x) => x.e));
+    const poor = upcoming(ctx, got.filter((x) => x && !x.rich).map((x) => x.e));
+    const items = rich.length >= ctx.need ? rich : upcoming(ctx, [...rich, ...poor.slice(0, ctx.need - rich.length)]);
+    return { items, note: `listing: ${(used.length ? used : pages).join(' ')} (${evs.length} upcoming cards)` };
   },
 
   async ical(ctx, signal) {
@@ -1193,9 +1444,9 @@ async function newsEvents(opts) {
     const existingP = token && !o.sourceOnly ? Promise.all([daList(`sites/${slug}/news`), daList(`sites/${slug}/events`)]) : Promise.resolve([null, null]);
     const [nr, er] = await Promise.all([race('news', NEWS_STRATEGIES, ctxN), race('events', EVENT_STRATEGIES, ctxE)]);
     const pickNews = () => {
-      if (nr.winner) return nr.results[nr.winner].slice(0, nNews);
+      if (nr.winner) return nr.results[nr.winner].filter((x) => !isSensitive(x)).slice(0, nNews);
       const seen = new Set();
-      return Object.values(nr.results).flat().sort((a, b) => (a.date < b.date ? 1 : -1)).filter((x) => { const k = normKey(x.title); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, nNews);
+      return Object.values(nr.results).flat().filter((x) => !isSensitive(x)).sort((a, b) => (a.date < b.date ? 1 : -1)).filter((x) => { const k = normKey(x.title); if (seen.has(k)) return false; seen.add(k); return true; }).slice(0, nNews);
     };
     const realNews = pickNews();
     const realEvents = (er.winner ? er.results[er.winner] : upcoming(ctxE, Object.values(er.results).flat())).slice(0, nEvents);

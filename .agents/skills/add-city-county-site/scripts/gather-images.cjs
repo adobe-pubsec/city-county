@@ -51,7 +51,7 @@ async function gatherImages(site, outDir, { commons, article, want = 12, stock, 
   let i = 0;
   for (const c of cands) {
     const n = String(++i).padStart(2, '0');
-    const rec = { id: n, origin: c.origin, url: c.url, page: c.page || c.source, name: c.name, width: c.width, height: c.height, alt: c.alt || c.description || '', license: c.license, artist: c.artist || null, people: !!c.people };
+    const rec = { id: n, origin: c.origin, url: c.url, page: c.page || c.source, name: c.name, width: c.width, height: c.height, alt: c.alt || c.description || '', license: c.license, artist: c.artist || null, people: !!c.people, ...(c.banner ? { banner: true } : {}) };
     try {
       Object.assign(rec, await download(c.url, `${outDir}/c${n}`, MAX_BYTES));
     } catch (e) { rec.error = String(e.message || e); }
@@ -73,7 +73,7 @@ if (isMain(module)) {
   if (pos.length < 2) { console.error('usage: gather-images.cjs <siteUrl> <outDir> [--stock "<City, State>"] [--commons "<cat>"] [--article "<title>"] [--want 12]'); process.exitCode = 1; }
   else gatherImages(pos[0], pos[1], { stock: opt('--stock'), commons: opt('--commons'), article: opt('--article'), want: Number(opt('--want') || 12) }).then((r) => {
     console.log(`site: ${r.site}  official-site: ${r.siteCount}  stock: ${r.stockCount}  commons: ${r.commonsCount}`);
-    for (const c of r.candidates) console.log(`${c.id} [${c.origin === 'official-site' ? 'site' : c.origin === 'adobe-stock-comp' ? 'stock' : 'commons'}]${c.people ? '[people]' : ''} ${c.width}x${c.height} ${c.error ? 'ERROR ' + c.error : (c.bytes / 1e6).toFixed(1) + 'MB'}  ${c.file || ''}  ${c.name}`);
+    for (const c of r.candidates) console.log(`${c.id} [${c.origin === 'official-site' ? 'site' : c.origin === 'adobe-stock-comp' ? 'stock' : 'commons'}]${c.people ? '[people]' : ''}${c.banner ? '[banner]' : ''} ${c.width}x${c.height} ${c.error ? 'ERROR ' + c.error : (c.bytes / 1e6).toFixed(1) + 'MB'}  ${c.file || ''}  ${c.name}`);
     console.log(`wrote ${pos[1]}/candidates.json`);
     process.exitCode = r.candidates.filter((c) => !c.error).length >= 6 ? 0 : 2;
   }).catch((e) => { console.error('error:', e.message || e); process.exitCode = 1; });

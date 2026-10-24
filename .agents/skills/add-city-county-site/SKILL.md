@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.7.0"
+  version: "5.8.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -86,6 +86,7 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | `preflight.cjs` | Stage mode | Off-the-clock readiness check (DA token, preview API, AEM login + not hibernated, Stock, Wikipedia), ~1 s |
 | `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
 | `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
+| `brand.cjs <site> --out <dir> --json` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s |
 | `place-nickname.cjs "<Wikipedia title>"` | Stage mode | Nickname/motto from the Wikipedia infobox for the localized hero line, ~0.3 s |
 
 ---
@@ -109,18 +110,23 @@ node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line 
 | t | Track | Command / action |
 |---|---|---|
 | 0:00 | main | `node $SK/scripts/resolve-place.cjs "<audience input>" --json`. If `verified-ambiguous`, show the options and let the audience pick. Decide `SLUG`, `ENTITY` (e.g. "City of Boise") and `STATE`. |
-| 0:10 | main, in background | `node $SK/scripts/gather-images.cjs <site> /tmp/$SLUG-img --stock "<Place, State>" --commons "<P373>" --want 12 &` |
+| 0:10 | **background job** | `node $SK/scripts/gather-images.cjs <site> /tmp/$SLUG-img --stock "<Place, State>" --commons "<P373>" --want 12` |
 | 0:10 | main | `node $SK/scripts/place-nickname.cjs "<Wikipedia title>" --json` → choose the tagline (rules below). Get the real street address from the site footer if it's quick (one fetch); otherwise skip it. |
 | 0:20 | main | `node $SK/scripts/clone-blueprint.cjs --slug $SLUG --entity "$ENTITY" --tagline "<tagline>" [--address "<addr>"] --json` (~8 s, must exit 0) |
-| 0:30 | **sub-agent A** | News + events: `node $SK/scripts/news-events.cjs --site <site> --slug $SLUG --entity "$ENTITY" --images /tmp/$SLUG-img --tz <IANA tz> --publish --json` (hard cap 150 s; fills gaps from the blueprint automatically) |
-| 0:30 | **main (track B)** | Brand: palette (6a) and logo (6b) from the official site. Then the hero: upload the best official-site photo (c\*) as `/sites/$SLUG/.index/hero.jpg` (the cloned index already points there; no HTML edit needed). |
-| 0:30 | **main (track C)** | Look at `s01…s12` with `open --view --size 300x200`, pick 6, write the manifest, start `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json &`. AEM processing (~2–3 min) runs in the background. |
+| 0:30 | **background job A** | News + events: `node $SK/scripts/news-events.cjs --site <site> --slug $SLUG --entity "$ENTITY" --images /tmp/$SLUG-img --tz <IANA tz> --publish --json` (hard cap 150 s; fills gaps from the blueprint automatically) |
+| 0:30 | **main (track B)** | Brand: `node $SK/scripts/brand.cjs <site> --out /tmp/$SLUG-brand --json` (~1 s). Use its `palette` for the metadata row and upload the file in its `logo.use` (the recolored SVG when the logo is white) to `fragments/nav/.header/logo.<ext>`, updating the header's `<img>` src/extension and `logo-is` (6b steps 4–5). Read `warnings` aloud only if relevant. Then the hero (rules below): upload it as `/sites/$SLUG/.index/hero.jpg`. The cloned index already points there; no HTML edit needed. |
+| 0:30 | **main (track C)** | Look at `s01…s12` with `open --view --size 300x200`, pick 6, write the manifest, then start **background job** `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json`. AEM processing (~2–3 min) runs in the background. |
 | ~2:30 | main | Step 7: append the metadata row (GET → append → PUT → re-GET verify). |
 | ~2:45 | main | Preview in one batch: `index`, `fragments/nav/header`, `fragments/nav/footer`, `fragments/nav/header/languages`, `metadata.json`. Publish `metadata.json` only now, after the row exists. |
 | ~3:00 | main | Open `https://main--city-county--adobe-pubsec.aem.page/sites/$SLUG/` for the audience. Check: palette, logo, hero, 3 news, 3 events. |
 | ~4:00 | main | When `aem-assets.cjs` finishes, show `/content/dam/city-county/$SLUG/` in AEM Assets. Show the folder; don't rely on a live search, because the index can lag. |
 
-- **Sub-agents:** run sub-agent A with `agent` (or a scoop) and give it ONLY the one command above, plus "report the JSON summary". Every command already has its own timeout. If A hasn't reported by t+3:00, carry on; the site still renders, with fallback news.
+- **Background jobs** (gather-images, news-events, aem-assets): run each as its **own bash tool call with `background_after: 0`**, redirecting output (`… --json > /tmp/$SLUG-news.json 2> /tmp/$SLUG-news.err`). The call returns at once, and a Background Command lick reports the exit later. Don't use a trailing `&` inside a normal call: the job dies when that call ends or times out, leaving empty files. Don't use a sub-agent either; a nested scoop can't create one, and the scripts need no reasoning. Every script has its own internal timeout. If news-events hasn't finished by t+3:00, carry on; the site renders with fallback news.
+- **Hero image, in order of preference:**
+  1. An official-site photo (`c*` in candidates.json, ≥ 1200 px wide, a real place scene: skyline, landmark, downtown, park; not people close-ups, logos or event flyers).
+  2. An Adobe Stock comp (`s*`). **Crop off the left 60 px first** to remove the vertical Stock ID strip: `convert s08.jpg -crop 940x<H>+60+0 -quality 85 hero.jpg`, where `<H>` is the comp's height from candidates.json (comps are 1000 px wide). The faint diagonal watermark stays; that's accepted for the demo.
+  3. A Commons photo.
+  Look at it (`open --view --size 600x400`) before uploading.
 - **Card images:** keep the blueprint's card images as they are. Don't replace them with city photos.
 - **Tagline rules** (`--tagline`):
   - The hero H1 becomes "<ENTITY>: *<tagline>*".
@@ -128,6 +134,8 @@ node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line 
   - If there's no nickname, write a short line from real landmarks you've already seen this run (Stock photo titles, the Wikipedia lead): "From Lake Tahoe to the High Desert". Use real place names only, and never invent a nickname or a motto.
   - If you're unsure, leave out `--tagline` (the default line stays).
 - **Address:** without `--address`, the footer address line shows the entity name, never the placeholder.
+- **Brand overrides:** `brand.cjs` picks the header color as primary. If a candidate in `palette.candidates` is clearly the darker brand color (it's listed with its evidence), swapping primary and secondary is fine. Primary must keep ≥ 4.5:1 contrast with white (the script checks).
+- **News is stage-safe:** news-events skips crime, violence, death and disaster headlines (arrests, shootings, fatal crashes...) and takes the next real item instead.
 - **Fallback is fine on stage:** news-events marks those items `origin: "fallback"`. Say so out loud, and don't retry.
 
 ---
@@ -585,6 +593,10 @@ obviously generic locality phrasing.
 Both come from the URL in Step 2 (or an attached image).
 
 ### 6a. Color palette
+
+> **Use `scripts/brand.cjs <site> --out <dir> --json`** for 6a and 6b in one pass (static fetch, ~1 s).
+> It returns `palette.{primary,secondary,accent,candidates}` and `logo.{file,format,width,height,logoIs,whiteOnTransparent,recoloredFile}` + `warnings`.
+> The manual method below is the fallback when it exits 2 (no logo / no colors).
 Goal: `color-primary`, `color-secondary`, `color-accent` (map to
 `--primary`/`--secondary`/`--accent` in `styles/styles.css`).
 

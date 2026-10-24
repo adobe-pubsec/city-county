@@ -2,7 +2,7 @@
 // preflight.cjs — run BEFORE the audience picks a place (off the clock).
 // Checks every dependency the stage run needs, in parallel, in a few seconds:
 //   DA token + repo access, Admin API (preview) reachability, AEM author session (CSRF),
-//   AEM Assets parent folder, Adobe Stock search, Wikipedia/Wikidata, companion skills.
+//   AEM Assets parent folder, Adobe Stock search, Wikipedia/Wikidata, companion skills, magick-wasm.
 // Usage: DA_TOKEN=$(oauth-token adobe | tr -d '[:space:]') node preflight.cjs [--aem <author host>] [--json]
 // Exit 0 = all green; 1 = something the demo depends on is broken (fix it before going on stage).
 const fs = require('fs');
@@ -27,6 +27,11 @@ async function preflight({ token = process.env.DA_TOKEN, aem = DEFAULT_AEM } = {
       const missing = need.filter((s) => !fs.existsSync(`/workspace/skills/${s}/SKILL.md`));
       if (missing.length) throw new Error('missing: ' + missing.join(', ') + ' (upskill adobe/skills --skill <name>)');
       return 'da-content, da-auth present';
+    }),
+    check('image tools (hero crop)', async () => {
+      const p = '/shared/lib/node_modules/@imagemagick/magick-wasm/package.json';
+      if (!fs.existsSync(p)) throw new Error('magick-wasm missing (ipk add -g @imagemagick/magick-wasm@0.0.44): needed to crop the Stock ID strip off the hero');
+      return 'magick-wasm ' + JSON.parse(fs.readFileSync(p, 'utf8')).version;
     }),
     check('DA token + repo', async () => {
       if (!token) throw new Error('DA_TOKEN not set: DA_TOKEN=$(oauth-token adobe | tr -d "[:space:]")');
