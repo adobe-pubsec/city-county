@@ -7,7 +7,21 @@
 // Usage: node resolve-place.cjs "<place name>" [--json]
 // Exit:  0 = verified live site (status "verified" or "verified-ambiguous" — ask the
 //        user to pick when ambiguous), 2 = found but site not verified, 1 = nothing.
-const { fetchT, getJson, isMain } = require('./lib.cjs');
+const { fetchT, getJson, isMain, UA_BROWSER } = require('./lib.cjs');
+
+// One live check: { status, finalUrl, live } or throws (network error / timeout).
+async function liveCheck(url) {
+  const r = await fetchT(url, { headers: { 'User-Agent': UA_BROWSER } });
+  return { status: r.status, finalUrl: r.url || url, live: r.status < 400 ? 'live' : r.status === 403 ? 'blocked-bot-likely-live' : 'error' };
+}
+// https variants of an http:// URL, same host first, then with/without "www.".
+function httpsVariants(url) {
+  let u; try { u = new URL(url); } catch (e) { return []; }
+  if (u.protocol !== 'http:') return [];
+  const rest = u.pathname + u.search;
+  const hosts = [u.hostname, u.hostname.startsWith('www.') ? u.hostname.slice(4) : 'www.' + u.hostname];
+  return hosts.map((h) => `https://${h}${u.port ? ':' + u.port : ''}${rest}`);
+}
 
 const PLACE = /\b(city|town|county|village|borough|township|municipality|parish|consolidated city-county|independent city|county seat|charter township|state capital|big city|metropolis)\b/i;
 const REJECT = /\b(metropolitan|statistical area|airport|university|team|ship|neighborhood|film|album|census-designated)\b/i;
@@ -42,10 +56,20 @@ async function resolvePlace(q) {
   for (const c of cands.slice(0, 3)) {
     if (!c.website) { c.live = 'no-website-on-wikidata'; continue; }
     try {
-      const r = await fetchT(c.website, { headers: { 'User-Agent': require('./lib.cjs').UA_BROWSER } });
-      c.httpStatus = r.status; c.finalUrl = r.url || c.website;
-      c.live = r.status < 400 ? 'live' : r.status === 403 ? 'blocked-bot-likely-live' : 'error';
+      const r = await liveCheck(c.website);
+      c.httpStatus = r.status; c.finalUrl = r.finalUrl; c.live = r.live;
     } catch (err) { c.live = 'unreachable'; }
+    // Wikidata often lists http:// sites; the browser fetch can fail on those even when
+    // https works (Tucson). Retry the https variants (with/without www.) in parallel.
+    if (c.live === 'unreachable' || c.live === 'error') {
+      const vs = httpsVariants(c.website);
+      const tries = await Promise.all(vs.map((v) => liveCheck(v).then((r) => ({ v, ...r }), () => null)));
+      const hit = tries.find((t) => t && t.live === 'live');
+      if (hit) {
+        c.wikidataWebsite = c.website; c.website = hit.v;
+        c.httpStatus = hit.status; c.finalUrl = hit.finalUrl; c.live = 'live'; c.httpsRetry = true;
+      }
+    }
   }
   const best = cands[0];
   const ambiguous = cands.length > 1 && cands[1].title.split(',')[0].toLowerCase().includes(q.split(',')[0].toLowerCase().replace(/\s+(county|city)$/, ''));
@@ -65,7 +89,7 @@ if (isMain(module)) {
     else {
       console.log(`query:   ${res.query}\nstatus:  ${res.status}`);
       const b = res.best;
-      if (b) console.log(`best:    ${b.title} (${b.wikidata}) — ${b.description}\nsite:    ${b.website || '-'} -> ${b.live}${b.finalUrl && b.finalUrl !== b.website ? ' (final ' + b.finalUrl + ')' : ''}\ncommons: ${b.commonsCategory || '-'}`);
+      if (b) console.log(`best:    ${b.title} (${b.wikidata}) — ${b.description}\nsite:    ${b.website || '-'} -> ${b.live}${b.finalUrl && b.finalUrl !== b.website ? ' (final ' + b.finalUrl + ')' : ''}${b.wikidataWebsite ? ' (https retry; Wikidata lists ' + b.wikidataWebsite + ')' : ''}\ncommons: ${b.commonsCategory || '-'}`);
       for (const a of res.alternates || []) console.log(`  alt:   ${a.title} (${a.wikidata}) ${a.website || '-'}${a.live ? ' -> ' + a.live : ''}`);
     }
     process.exitCode = res.status.startsWith('verified') ? 0 : res.best ? 2 : 1;

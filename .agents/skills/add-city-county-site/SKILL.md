@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.8.0"
+  version: "5.9.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -79,14 +79,15 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 
 | Script | Used in | Does |
 |---|---|---|
-| `resolve-place.cjs "<name>"` | Step 2 | Place name → official website (Wikipedia search → Wikidata P856), live-checked; flags ambiguity |
+| `resolve-place.cjs "<name>"` | Step 2 | Place name → official website (Wikipedia search → Wikidata P856), live-checked (http:// retried as https, ± www.); flags ambiguity |
 | `gather-images.cjs <url> <dir> --stock "<place>"` | Step 6d | ~12 Adobe Stock comps + a few official-site photos (hero), Commons fallback; downloads locally |
 | `stock-images.cjs`, `site-images.cjs`, `commons-images.cjs` | (used by gather-images) | Per-source harvesters; usable standalone |
-| `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata |
+| `make-manifest.cjs <dir> --slug --entity --pick s01,c03,… [--hero <id>]` | Step 6d | Picked IDs → aem-assets manifest (Stock titles/artists/rights, real-format JPEGs); `--hero` writes `<dir>/hero.jpg` (Stock strip cropped) |
+| `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata; search lag → `searchOk:false` + `warnings`, still exit 0 |
 | `preflight.cjs` | Stage mode | Off-the-clock readiness check (DA token, preview API, AEM login + not hibernated, Stock, Wikipedia), ~1 s |
 | `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
 | `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
-| `brand.cjs <site> --out <dir> --json` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s |
+| `brand.cjs <site> --out <dir> --json [--apply --slug <slug>]` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s. `--apply` (DA_TOKEN): uploads `logo.use`, rewrites header src/`logo-is`/home links, PUT + verify (~2 s; `--dry-run` = plan only) |
 | `place-nickname.cjs "<Wikipedia title>"` | Stage mode | Nickname/motto from the Wikipedia infobox for the localized hero line, ~0.3 s |
 
 ---
@@ -114,8 +115,8 @@ node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line 
 | 0:10 | main | `node $SK/scripts/place-nickname.cjs "<Wikipedia title>" --json` → choose the tagline (rules below). Get the real street address from the site footer if it's quick (one fetch); otherwise skip it. |
 | 0:20 | main | `node $SK/scripts/clone-blueprint.cjs --slug $SLUG --entity "$ENTITY" --tagline "<tagline>" [--address "<addr>"] --json` (~8 s, must exit 0) |
 | 0:30 | **background job A** | News + events: `node $SK/scripts/news-events.cjs --site <site> --slug $SLUG --entity "$ENTITY" --images /tmp/$SLUG-img --tz <IANA tz> --publish --json` (hard cap 150 s; fills gaps from the blueprint automatically) |
-| 0:30 | **main (track B)** | Brand: `node $SK/scripts/brand.cjs <site> --out /tmp/$SLUG-brand --json` (~1 s). Use its `palette` for the metadata row and upload the file in its `logo.use` (the recolored SVG when the logo is white) to `fragments/nav/.header/logo.<ext>`, updating the header's `<img>` src/extension and `logo-is` (6b steps 4–5). Read `warnings` aloud only if relevant. Then the hero (rules below): upload it as `/sites/$SLUG/.index/hero.jpg`. The cloned index already points there; no HTML edit needed. |
-| 0:30 | **main (track C)** | Look at `s01…s12` with `open --view --size 300x200`, pick 6, write the manifest, then start **background job** `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json`. AEM processing (~2–3 min) runs in the background. |
+| 0:30 | **main (track B)** | Brand + logo in one call: `node $SK/scripts/brand.cjs <site> --out /tmp/$SLUG-brand --apply --slug $SLUG --json` (~2 s; must show `applied.verified: true`). It uploads `logo.use` to `fragments/nav/.header/logo.<ext>`, rewrites the header `<img>`, `logo-is` and home links, and verifies. Use its `palette` for the metadata row (overrides below). Read `warnings` aloud only if relevant. Hero: upload `/tmp/$SLUG-img/hero.jpg` (from track C `--hero`) as `/sites/$SLUG/.index/hero.jpg`; no HTML edit needed. |
+| 0:30 | **main (track C)** | Look at `s01…s12` (and any `c*`) with `open --view --size 300x200`, pick 6 + a hero (rules below), then `node $SK/scripts/make-manifest.cjs /tmp/$SLUG-img --slug $SLUG --entity "$ENTITY, $STATE" --pick s01,s04,… --hero c03 [--title c03="<what it shows>"]` (<1 s; writes `manifest.json` + `hero.jpg`). Pass `--title` for site photos (`c*`), whose auto titles come from file names. Then start **background job** `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json`. AEM processing (~2–3 min) runs in the background. |
 | ~2:30 | main | Step 7: append the metadata row (GET → append → PUT → re-GET verify). |
 | ~2:45 | main | Preview in one batch: `index`, `fragments/nav/header`, `fragments/nav/footer`, `fragments/nav/header/languages`, `metadata.json`. Publish `metadata.json` only now, after the row exists. |
 | ~3:00 | main | Open `https://main--city-county--adobe-pubsec.aem.page/sites/$SLUG/` for the audience. Check: palette, logo, hero, 3 news, 3 events. |
@@ -124,7 +125,7 @@ node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line 
 - **Background jobs** (gather-images, news-events, aem-assets): run each as its **own bash tool call with `background_after: 0`**, redirecting output (`… --json > /tmp/$SLUG-news.json 2> /tmp/$SLUG-news.err`). The call returns at once, and a Background Command lick reports the exit later. Don't use a trailing `&` inside a normal call: the job dies when that call ends or times out, leaving empty files. Don't use a sub-agent either; a nested scoop can't create one, and the scripts need no reasoning. Every script has its own internal timeout. If news-events hasn't finished by t+3:00, carry on; the site renders with fallback news.
 - **Hero image, in order of preference:**
   1. An official-site photo (`c*` in candidates.json, ≥ 1200 px wide, a real place scene: skyline, landmark, downtown, park; not people close-ups, logos or event flyers).
-  2. An Adobe Stock comp (`s*`). **Crop off the left 60 px first** to remove the vertical Stock ID strip: `convert s08.jpg -crop 940x<H>+60+0 -quality 85 hero.jpg`, where `<H>` is the comp's height from candidates.json (comps are 1000 px wide). The faint diagonal watermark stays; that's accepted for the demo.
+  2. An Adobe Stock comp (`s*`). `make-manifest.cjs --hero s08` crops off the left 60 px Stock ID strip for you. The faint diagonal watermark stays; that's accepted for the demo.
   3. A Commons photo.
   Look at it (`open --view --size 600x400`) before uploading.
 - **Card images:** keep the blueprint's card images as they are. Don't replace them with city photos.
@@ -775,7 +776,7 @@ fails, that login is missing or expired.
    crowds, posed people, signage, voting or office scenes, and near-duplicates.
    For the AEM set, pick from the Stock comps (s\*). Reserve the best
    official-site photo (c\*) for the hero.
-3. **Write a manifest** (`/tmp/{{SLUG}}-img/manifest.json`). Name every file
+3. **Write the manifest:** `node $SK/scripts/make-manifest.cjs /tmp/{{SLUG}}-img --slug {{SLUG}} --entity "{{ENTITY}}, <State>" --pick <ids> [--hero <id>]`. It converts mislabeled/non-JPEG files, names them `{{SLUG}}-<subject>.jpg` and fills title/creator/rights from `stock.json`/`candidates.json`. Descriptions are generated from titles (`descriptionAuto: true`); pass `--title <id>="…"` for site photos with no alt text. Format reference for hand edits: (`/tmp/{{SLUG}}-img/manifest.json`). Name every file
    `{{SLUG}}-<subject>.<ext>` (use the `ext` from `candidates.json`; sites
    serve PNGs too) and describe what you actually saw, not the file name:
    ```json
@@ -806,10 +807,7 @@ fails, that login is missing or expired.
    > by AEM's extraction, even though the write returns 200. Never set
    > metadata before `processed`. The script handles this; don't
    > "optimize" it away.
-5. **Verify:** (exit 2 with every asset `processed` and no missing metadata = the search index is lagging; that's fine, re-check later.) The script exits 0 only if every asset is `processed`, no
-   metadata is missing, and a full-text search for the entity's short name
-   finds all of them. Report `assetsUrl` from its output. Dynamic Media
-   (Scene7) sync happens automatically on this environment.
+5. **Verify:** exit 0 = every asset `processed` with metadata verified. Search lag doesn't fail the run: it shows `searchOk: false` and a `warnings` entry ("search index lagging: 5/6 hits…"), so re-check later. Exit 2 = an asset failed. Report `assetsUrl`. Dynamic Media (Scene7) sync happens automatically on this environment.
 
 **Rights:** Adobe Stock comps are unlicensed watermarked previews. Fine for the
 demo; license them (same `stockId`) before any public use. Official-site photos

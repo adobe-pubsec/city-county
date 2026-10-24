@@ -2,9 +2,14 @@
 // brand.cjs — fast palette + logo extraction from a city/county homepage (SKILL step 6a/6b).
 // One homepage fetch + up to 8 linked stylesheets in parallel (static, no browser).
 // Usage: node brand.cjs <site-url> [--out <dir>] [--json]
-// Module: require('./brand.cjs').brand(url, { out })
-// Exit: 0 = palette + logo, 2 = partial (no logo or no brand colors), 1 = error.
+//        node brand.cjs <site-url> --apply --slug <slug> [--dry-run] [--out <dir>] [--json]
+// Module: require('./brand.cjs').brand(url, { out }); applyLogo(result, { slug, token, dryRun })
+// Exit: 0 = palette + logo (and, with --apply, header written + verified), 2 = partial (no logo
+//       or no brand colors), 1 = error (incl. a failed --apply).
 // Read-only against the web; writes only into --out (default /tmp/brand/<host>).
+// --apply (needs DA_TOKEN): uploads logo.use to sites/<slug>/fragments/nav/.header/logo.<ext>,
+//   points the header <picture> at it, sets logo-is, forces brand home links to /sites/<slug>/,
+//   PUTs the header and re-GETs to verify. No preview. --dry-run: GET + plan only, no writes.
 const fs = require('fs');
 const zlib = require('zlib');
 const { fetchT, UA_BROWSER, isMain } = require('./lib.cjs');
@@ -548,14 +553,101 @@ async function brand(site, { out } = {}) {
   return { site: base, ms: Date.now() - t0, palette: { primary: pal.primary, secondary: pal.secondary, accent: pal.accent, candidates: pal.candidates }, logo, warnings, sheets: sheetLog };
 }
 
-module.exports = { brand, parseColor, contrastWhite, svgIsWhite, recolorSvg, logoIs, VAR_FRAMEWORK };
+// ---------- --apply: logo + header fragment in DA ----------
+const DA_ORG = 'adobe-pubsec'; const DA_REPO = 'city-county';
+const DA_MIME = { svg: 'image/svg+xml', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp', gif: 'image/gif' };
+// Brand section of a header fragment: from <main> to its section-metadata (or the first nav list).
+function brandRegion(t) {
+  const start = t.indexOf('<main>') >= 0 ? t.indexOf('<main>') : 0;
+  const ends = [t.indexOf('class="section-metadata"', start), t.indexOf('<ul', start)].filter((x) => x > start);
+  return [start, ends.length ? Math.min(...ends) : t.length];
+}
+// Rewrite the header HTML; pure, so --dry-run and tests can use it. Returns { html, changes }.
+function rewriteHeader(html, { slug, ext, logoIs: is }) {
+  const changes = []; let t = html;
+  const logoUrl = `https://content.da.live/${DA_ORG}/${DA_REPO}/sites/${slug}/fragments/nav/.header/logo.${ext}`;
+  // 1. logo refs (img src + source srcset): absolute content.da.live form (what clone-blueprint and
+  //    existing tenants use) from any base, or a relative .header/logo.<ext>.
+  let n = 0;
+  t = t.replace(/https:\/\/content\.da\.live\/[^"'\s>]*?\/fragments\/nav\/\.header\/logo\.[a-z0-9]+/gi, (m) => { n++; return logoUrl; });
+  t = t.replace(/((?:src|srcset)=")(?:\.\/)?\.header\/logo\.[a-z0-9]+/gi, (m, a) => { n++; return a + logoUrl; });
+  changes.push(`logo refs -> .header/logo.${ext}: ${n}`);
+  // 2. logo-is value cell(s), e.g. …<p>logo-is</p></div><div><p>square</p>…
+  if (is) {
+    let k = 0;
+    t = t.replace(/(<p>logo-is<\/p><\/div>\s*<div>\s*<p>)([^<]*)(<\/p>)/gi, (m, a, v, b) => { k++; return a + is + b; });
+    changes.push(`logo-is -> ${is}: ${k}`);
+  }
+  // 3. brand-section home links -> /sites/<slug>/ (trailing slash; /sites/<slug> 404s).
+  const [start, end] = brandRegion(t);
+  let h = 0; const home = `/sites/${slug}/`;
+  const brandPart = t.slice(start, end).replace(/(<a\b[^>]*?\shref=")([^"]*)(")/gi, (m, a, v, b) => { if (v !== home) h++; return a + home + b; });
+  t = t.slice(0, start) + brandPart + t.slice(end);
+  changes.push(`home links -> ${home}: ${h} fixed`);
+  return { html: t, changes, logoUrl };
+}
+
+async function applyLogo(r, { slug, token, dryRun = false } = {}) {
+  if (!slug || !/^[a-z0-9-]+$/.test(slug)) throw new Error('--apply needs --slug <slug> (lowercase, a-z0-9-)');
+  const base = `sites/${slug}/fragments/nav`;
+  const src = (p) => `https://admin.da.live/source/${DA_ORG}/${DA_REPO}/${p}`;
+  const headerPath = `${base}/header.html`;
+  const out = { headerPath, logoPath: null, headerChanged: false, logoIs: null, dryRun: !!dryRun, changes: [], verified: false };
+  const l = r.logo || {};
+  if (!l.use) { out.warning = 'no usable logo; header left untouched (blueprint placeholder, logo-is square)'; return out; }
+  const ext = (l.use.match(/\.([a-z0-9]+)$/i) || [])[1].toLowerCase().replace('jpeg', 'jpg');
+  const mime = DA_MIME[ext]; if (!mime) throw new Error(`unsupported logo type .${ext}`);
+  out.logoPath = `${base}/.header/logo.${ext}`; out.logoIs = l.logoIs || null; out.logoFile = l.use;
+  if (!out.logoIs) out.warning = 'logo has no intrinsic size; logo-is left as authored';
+  if (!token) {
+    if (dryRun) { out.plan = [`GET ${headerPath}`, `PUT ${out.logoPath} (${mime}, from ${l.use})`, `rewrite logo src -> .header/logo.${ext}, logo-is -> ${out.logoIs}, brand home links -> /sites/${slug}/`, `PUT ${headerPath}, re-GET verify`]; out.warning = (out.warning ? out.warning + '; ' : '') + 'no DA_TOKEN: plan only, header not read'; return out; }
+    throw new Error('no DA_TOKEN (export DA_TOKEN=$(oauth-token adobe | tr -d \'[:space:]\'))');
+  }
+  const auth = { Authorization: `Bearer ${token}` };
+  const put = async (p, bytes, type) => {
+    const fd = new FormData(); fd.append('data', new Blob([bytes], { type }), p.split('/').pop());
+    const x = await fetchT(src(p), { method: 'PUT', headers: auth, body: fd }, 30000);
+    if (!x.ok) throw new Error(`PUT ${p} -> ${x.status}`);
+    return x.status;
+  };
+  const get = async (p) => { const x = await fetchT(src(p), { headers: auth }, 20000); if (!x.ok) throw new Error(`GET ${p} -> ${x.status}${x.status === 404 ? ' (clone the tenant first)' : x.status === 401 || x.status === 403 ? ' (refresh DA_TOKEN)' : ''}`); return Buffer.from(await x.arrayBuffer()); };
+  const before = (await get(headerPath)).toString('utf8');
+  const rw = rewriteHeader(before, { slug, ext, logoIs: out.logoIs });
+  out.changes = rw.changes; out.headerChanged = rw.html !== before; out.logoUrl = rw.logoUrl;
+  if (!/\.header\/logo\./.test(before)) out.warning = (out.warning ? out.warning + '; ' : '') + 'header had no .header/logo.* reference; logo uploaded but not linked';
+  if (dryRun) { out.plan = [`PUT ${out.logoPath} (${mime}, ${fs.statSync(l.use).size} bytes)`, out.headerChanged ? `PUT ${headerPath} (${rw.changes.join('; ')})` : `header already up to date; no PUT`]; return out; }
+  const logoBytes = fs.readFileSync(l.use);
+  await put(out.logoPath, logoBytes, mime);
+  if (out.headerChanged) await put(headerPath, Buffer.from(rw.html, 'utf8'), 'text/html');
+  // Verify: re-GET both. Header must carry the new src, logo-is and home links.
+  const [hBack, lBack] = await Promise.all([get(headerPath), get(out.logoPath)]);
+  const back = hBack.toString('utf8');
+  const checks = {
+    headerMatches: back === rw.html,
+    logoSrc: back.includes(rw.logoUrl),
+    logoIs: !out.logoIs || new RegExp(`<p>logo-is</p></div>\\s*<div>\\s*<p>${out.logoIs}</p>`).test(back),
+    homeLinks: (() => { const [a0, b0] = brandRegion(back); const hs = [...back.slice(a0, b0).matchAll(/<a\b[^>]*?\shref="([^"]*)"/gi)].map((m) => m[1]); return hs.length > 0 && hs.every((x) => x === `/sites/${slug}/`); })(),
+    logoBytes: lBack.length === logoBytes.length,
+  };
+  out.checks = checks; out.verified = Object.values(checks).every(Boolean);
+  if (!out.verified) throw Object.assign(new Error('--apply verify failed: ' + JSON.stringify(checks)), { applied: out });
+  return out;
+}
+
+module.exports = { brand, applyLogo, rewriteHeader, parseColor, contrastWhite, svgIsWhite, recolorSvg, logoIs, VAR_FRAMEWORK };
 
 if (isMain(module)) {
   const a = process.argv.slice(2);
   const oi = a.indexOf('--out'); const out = oi >= 0 ? a[oi + 1] : undefined;
-  const url = a.filter((x, i) => !x.startsWith('--') && !(oi >= 0 && i === oi + 1))[0];
-  if (!url) { console.error('usage: brand.cjs <site-url> [--out <dir>] [--json]'); process.exitCode = 1; }
-  else brand(url, { out }).then((r) => {
+  const si = a.indexOf('--slug'); const slug = si >= 0 ? a[si + 1] : undefined;
+  const apply = a.includes('--apply'); const dryRun = a.includes('--dry-run');
+  const url = a.filter((x, i) => !x.startsWith('--') && !(oi >= 0 && i === oi + 1) && !(si >= 0 && i === si + 1))[0];
+  if (!url || (apply && !slug)) { console.error('usage: brand.cjs <site-url> [--out <dir>] [--json] [--apply --slug <slug> [--dry-run]]'); process.exitCode = 1; }
+  else brand(url, { out }).then(async (r) => {
+    if (apply) {
+      try { r.applied = await applyLogo(r, { slug, token: (process.env.DA_TOKEN || '').trim(), dryRun }); }
+      catch (e) { r.applied = e.applied || { error: String(e.message || e) }; r.applied.error = String(e.message || e); }
+    }
     if (a.includes('--json')) console.log(JSON.stringify(r, null, 2));
     else {
       const p = r.palette; const l = r.logo;
@@ -565,7 +657,14 @@ if (isMain(module)) {
       if (l.file) console.log(`logo: ${l.kind} ${l.format} ${l.width}x${l.height} logo-is=${l.logoIs} white=${l.whiteOnTransparent}\n  src  ${l.url || '(inline svg)'}\n  use  ${l.use}`);
       else console.log('logo: none found');
       r.warnings.forEach((w) => console.log('warning: ' + w));
+      const ap = r.applied;
+      if (ap) {
+        if (ap.error) console.log(`apply: FAILED  ${ap.error}`);
+        else if (ap.dryRun) console.log(`apply (dry run): ${ap.headerPath}\n  ${(ap.plan || []).join('\n  ')}`);
+        else console.log(`apply: ${ap.logoPath ? 'uploaded ' + ap.logoPath : 'no logo'}  header ${ap.headerChanged ? 'updated' : 'unchanged'}  logo-is=${ap.logoIs}  verified=${ap.verified}${ap.changes.length ? '\n  ' + ap.changes.join('\n  ') : ''}`);
+        if (ap.warning) console.log('warning: ' + ap.warning);
+      }
     }
-    process.exitCode = r.palette.primary && r.logo.file ? 0 : 2;
+    process.exitCode = r.applied && r.applied.error ? 1 : r.palette.primary && r.logo.file ? 0 : 2;
   }).catch((e) => { console.error('error:', e.message || e); process.exitCode = 1; });
 }

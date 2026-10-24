@@ -13,6 +13,8 @@
 //   5. Sling POST dc:* to <asset>/jcr:content/metadata, then re-read to verify.
 //
 // Usage: node aem-assets.cjs <manifest.json>
+// Exit: 0 = every asset uploaded + processed + metadata verified (search lag is only a
+//       warning: searchOk=false + warnings[]), 2 = some asset failed, 1 = error.
 // manifest: { "host": "https://author-pX-eY.adobeaemcloud.com", "parent": "city-county",
 //   "parentTitle": "City-County Demo", "slug": "boise-id", "entity": "Boise, Idaho",
 //   "images": [ { "file": "/tmp/x/c01.jpg", "name": "boise-id-skyline.jpg",
@@ -113,12 +115,19 @@ async function uploadTenantImages(m) {
   }));
   // Search check: the entity's short name should find every uploaded asset.
   const q = encodeURIComponent(m.entity.split(',')[0]);
-  const hits = await (await f(`${H}/bin/querybuilder.json?path=${dam}&type=dam:Asset&fulltext=${q}&p.limit=50`)).json().catch(() => ({ total: -1 }));
+  // Search lag is reported as a warning only: right after upload the full-text index often
+  // trails processing by minutes, which must not read as a failed run on stage.
+  const hits = await f(`${H}/bin/querybuilder.json?path=${dam}&type=dam:Asset&fulltext=${q}&p.limit=50`).then((r) => r.json()).catch(() => ({ total: -1 }));
+  const total = typeof hits.total === 'number' ? hits.total : -1;
+  const searchOk = total >= results.length;
+  const warnings = [];
+  if (!searchOk) warnings.push(total < 0 ? 'search check failed (querybuilder unreachable); assets may still be fine, check the folder' : `search index lagging: ${total}/${results.length} hits; normal right after upload`);
   return {
-    folder: dam, folders, searchTerm: m.entity.split(',')[0], searchHits: hits.total,
+    folder: dam, folders, searchTerm: m.entity.split(',')[0], searchHits: total, searchOk,
     assetsUrl: `${H}/ui#/aem/assets.html${dam}`,
     assets: results.map(({ img, ...r }) => r),
-    ok: results.every((r) => !r.error && r.state === 'processed' && !(r.missingMetadata || []).length) && hits.total >= results.length,
+    ok: results.every((r) => !r.error && r.state === 'processed' && !(r.missingMetadata || []).length),
+    warnings,
   };
 }
 
@@ -129,6 +138,9 @@ if (isMain(module)) {
   if (!mf) { console.error('usage: aem-assets.cjs <manifest.json>'); process.exitCode = 1; }
   else uploadTenantImages(JSON.parse(fs.readFileSync(mf, 'utf8'))).then((r) => {
     console.log(JSON.stringify(r, null, 2));
+    // Human-readable summary on stderr (stdout stays pure JSON for > file redirects).
+    console.error(`${r.ok ? 'OK' : 'NOT OK'}: ${r.assets.filter((a) => a.state === 'processed' && !a.error).length}/${r.assets.length} processed, search ${r.searchOk ? 'ok' : 'lagging'} (${r.searchHits} hits)  ${r.assetsUrl}`);
+    r.warnings.forEach((w) => console.error('warning: ' + w));
     process.exitCode = r.ok ? 0 : 2;
   }).catch((e) => { console.error('error:', e.message || e); process.exitCode = 1; });
 }
