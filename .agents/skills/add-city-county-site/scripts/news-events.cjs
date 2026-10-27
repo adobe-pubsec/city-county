@@ -798,6 +798,179 @@ async function ocListingCards(ctx, home, kind, max = 3) {
   return { cards: cards.filter((c) => !seen.has(c.link) && seen.add(c.link)), used, pages };
 }
 
+// ============================================================== CivicPlus HCMS ("Engage 6 / evolve") helpers
+// Client-rendered CivicPlus sites keep news/events in HCMS (a Squidex-based headless CMS, content.civicplus.com).
+// Every page ships each visitor the same public, read-only guest JWT (window.hcmsClientToken; scopes
+// contents.*.read + assets.read, ~1 month expiry) and hcmsReadOnlyConfiguration:{baseUrl, appName}. We read the
+// token from the page on every run (never stored), send it only to *.civicplus.com, and only issue GETs.
+// Field names differ per tenant (Releasedon / Date / none; eventdate / date / EventDate), so each content type's
+// roles are read from /api/apps/<app>/content-types?includeDetails=true.
+const HCMS_TOKEN = /hcmsClientToken\s*=\s*["'](Bearer\s+[A-Za-z0-9._-]+)["']/;
+const isHcms = (html) => HCMS_TOKEN.test(html || '');
+const HCMS_UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+const HCMS_ENT = { frac14: '¼', frac34: '¾', ensp: ' ', emsp: ' ', thinsp: ' ', shy: '', zwnj: '', zwj: '', lrm: '', rlm: '', cent: '¢', pound: '£', euro: '€', times: '×', plusmn: '±', sbquo: '‚', bdquo: '„', prime: '′' };
+function hcmsConfig(html) {
+  const tok = (String(html || '').match(HCMS_TOKEN) || [])[1];
+  if (!tok) return null;
+  const at = html.search(/hcmsReadOnlyConfiguration/);
+  const cfg = at >= 0 ? html.slice(at, at + 800) : '';
+  const base = (cfg.match(/["']?baseUrl["']?\s*:\s*["']([^"']+)["']/) || [])[1] || 'content.civicplus.com';
+  const app = (cfg.match(/["']?appName["']?\s*:\s*["']([a-z0-9][a-z0-9-]*)["']/i) || html.match(/content\.civicplus\.com\/app\/([a-z0-9][a-z0-9-]*)/i) || [])[1];
+  const host = base.replace(/^https?:\/\//i, '').replace(/[/?#].*$/, '').toLowerCase();
+  if (!app || !/(^|\.)civicplus\.com$/.test(host)) return null; // the guest token is only ever sent to CivicPlus
+  let exp = null;
+  try { exp = JSON.parse(Buffer.from(tok.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'), 'base64').toString()).exp || null; } catch { /* opaque token */ }
+  return { token: tok, api: `https://${host}/api`, app, exp };
+}
+// Page widgets: { types:[content type names], url: their "view all" page } (config is inlined as JS or escaped JSON).
+function hcmsWidgets(html, base) {
+  const s = String(html || '').replace(/\\n/g, ' ').replace(/\\"/g, '"');
+  const hits = [...s.matchAll(/["']?contentTypeNames["']?\s*:\s*\[([^\]]*)\]/g)].map((m) => ({ i: m.index, types: [...m[1].matchAll(/["']([\w-]+)["']/g)].map((x) => x[1].toLowerCase()) }));
+  return hits.filter((h) => h.types.length).map((h, k) => {
+    const win = s.slice(h.i, Math.min(h.i + 3000, (hits[k + 1] || { i: Infinity }).i));
+    const u = (win.match(/["']?viewAllCustomUrl["']?\s*:\s*["']([^"']+)["']/) || win.match(/["']?seeMorePageLink["']?\s*:\s*["']([^"']+)["']/) || [])[1];
+    return { types: h.types, url: u ? absUrl(/^(https?:)?\/|^#/i.test(u) ? u : `/${u}`, base) : null };
+  });
+}
+// The listing page for a content type: a widget whose URL names the kind, else a single-type widget, else any.
+function hcmsListing(widgets, type, kindRe) {
+  const w = widgets.filter((x) => x.url && x.types.includes(String(type).toLowerCase()));
+  const pick = w.find((x) => kindRe.test(new URL(x.url).pathname)) || w.find((x) => x.types.length === 1) || w[0];
+  return pick ? pick.url.replace(/#.*$/, '') : null;
+}
+// Field roles of one content type, from its schema (or the common defaults when the schema is unreadable).
+function hcmsRoles(t) {
+  const fields = (t.fields || (t.schema && t.schema.fields) || []).filter((f) => f && f.name && !f.isHidden);
+  const typ = (f) => String((f.properties && f.properties.fieldType) || f.fieldType || '');
+  const by = (re, ft) => fields.find((f) => re.test(f.name) && (!ft || ft.test(typ(f))));
+  const tf = (t.titleFields || [])[0];
+  const r = {
+    title: fields.find((f) => f.name === tf && /String/.test(typ(f))) || by(/^(title|name|headline|subject)$/i, /String/),
+    body: by(/^(description|body|details|content|article|text|summary|story)$/i, /String/) || by(/desc|body|detail|content/i, /String/),
+    date: by(/date|released|published|posted/i, /^DateTime$/) || fields.find((f) => typ(f) === 'DateTime'),
+    range: fields.find((f) => typ(f) === 'DateTimeRange'),
+    image: by(/image|photo|picture/i, /Assets/) || fields.find((f) => typ(f) === 'Assets'),
+    link: by(/link|url|web/i, /^Link$/),
+    geo: fields.find((f) => typ(f) === 'Geolocation'),
+    place: by(/location|venue|place/i, /^(String|Multi)$/),
+  };
+  for (const k of Object.keys(r)) r[k] = r[k] ? { name: r[k].name, part: r[k].partitioning === 'language' ? 'en' : 'iv' } : null;
+  return r;
+}
+const HCMS_DEFAULT = {
+  news: { title: { name: 'title', part: 'en' }, body: { name: 'description', part: 'en' }, date: null, range: null, image: { name: 'image', part: 'iv' }, link: null, geo: null, place: null },
+  event: { title: { name: 'title', part: 'en' }, body: { name: 'description', part: 'en' }, date: null, range: { name: 'eventdate', part: 'iv' }, image: null, link: { name: 'EventLink', part: 'iv' }, geo: { name: 'address', part: 'iv' }, place: null },
+};
+// A field value: the role's partition (en / iv), else whichever partition exists.
+function hcmsVal(data, role) {
+  const v = role && data ? data[role.name] : undefined;
+  if (v == null || typeof v !== 'object' || Array.isArray(v)) return v == null ? undefined : v;
+  if (v[role.part] !== undefined) return v[role.part];
+  return v.en !== undefined ? v.en : v.iv !== undefined ? v.iv : Object.values(v)[0];
+}
+// Rich-text body -> clean paragraphs: block boundaries, list items and <br> split paragraphs; Word/Outlook (mso)
+// residue, all-bold sub-headings, tables and bullet glyph lines are dropped.
+function hcmsParagraphs(html, opts) {
+  let h = String(html || '').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<!\[(?:if|endif)[^\]]*\]>/gi, ' ').replace(/<\/?o:p\b[^>]*>/gi, '')
+    .replace(/<(style|xml|script|table)\b[\s\S]*?<\/\1>/gi, '</p><p>')
+    .replace(/&(frac14|frac34|ensp|emsp|thinsp|shy|zwnj|zwj|lrm|rlm|cent|pound|euro|times|plusmn|sbquo|bdquo|prime);/g, (m, e) => HCMS_ENT[e]);
+  // list items survive only as full sentences ("Payment Deadline: Taxes are due December 18."); name lists do not
+  h = h.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (m, x) => (/[.!?]\s*$/.test(stripTags(x)) ? `</p><p>${x}</p><p>` : '</p><p>'));
+  h = h.replace(/<\/?(?:p|div|section|article|h[1-6]|blockquote|li|ul|ol|dl|dt|dd|figure)\b[^>]*>|<br\s*\/?>|<hr\b[^>]*>/gi, '</p><p>');
+  const parts = h.split('</p><p>').map((seg) => {
+    const t = stripTags(cleanCtl(seg)).replace(/\[(?:if [^\]]*|endif)\]/gi, ' ').trim();
+    if (!t) return '';
+    if (/<(strong|b)\b/i.test(seg) && !stripTags(seg.replace(/<(strong|b)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ')) && !/[.!?]$/.test(t)) return ''; // bold sub-heading
+    if (/^[•·▪◦●○■*–—-]\s/.test(t) || /\bmso-|\bMso[A-Z]|Style Definitions|\{[^{}]*:[^{}]*;[^{}]*\}/.test(t)) return '';
+    return squish(t.replace(/[\u2060\ufeff\u200c\u200d]/g, ''));
+  }).filter(Boolean)
+    // pasted text often wraps lines with <br>/<div>: rejoin a line that continues the previous sentence
+    .reduce((a, p) => { const last = a[a.length - 1]; if (last && /^[“"‘(]?[a-z]/.test(p) && !/[.!?:;”"]$/.test(last)) a[a.length - 1] = `${last} ${p}`; else a.push(p); return a; }, [])
+    // a trailing "Call 757-… / email …" sentence would make cleanParagraphs drop the whole paragraph: cut just that sentence
+    .map((p) => { if (!EMAIL.test(p) && !PHONE.test(p)) return p; const keep = hcmsSentences(p).filter((x) => !EMAIL.test(x) && !PHONE.test(x)).join(' ').trim(); return keep.length >= 40 ? keep : p; })
+    .filter((p) => !(p.length < 70 && !/[.!?:”"]$/.test(p)) && !(p.length < 90 && /\((pdf|docx?|xlsx?)\)/i.test(p)));
+  return cleanParagraphs(parts, opts);
+}
+// Shared per run (news + events): the HCMS page, guest token, content types with their roles, listing pages.
+function hcmsSite(ctx) {
+  if (!ctx.cache.has('hcms:site')) {
+    ctx.cache.set('hcms:site', (async () => {
+      const home = await ctx.home;
+      // /news is probed when the homepage is HCMS (for article URLs) or looks CivicPlus / did not load (detection)
+      const probe = !home || isHcms(home.html) || /civicplus|hcms/i.test(home.html);
+      const newsP = probe ? ctx.get(`${ctx.origin}/news`, { timeout: 6000 }) : Promise.resolve(null);
+      let page = home && isHcms(home.html) ? home : null;
+      let via = 'homepage';
+      if (!page) { const r = await newsP; if (r && r.ok && isHcms(r.text)) { page = { html: r.text, url: r.url }; via = '/news'; } }
+      const cfg = page && hcmsConfig(page.html);
+      if (!cfg) return null;
+      const H = { Authorization: cfg.token, Accept: 'application/json' };
+      const ct = await fx(`${cfg.api}/apps/${cfg.app}/content-types?includeDetails=true`, { as: 'json', headers: H, timeout: 6000 });
+      const list = ct.ok && ct.json ? (Array.isArray(ct.json) ? ct.json : ct.json.items || []) : [];
+      const types = list.filter((t) => t && t.name && t.isPublished !== false).map((t) => ({ name: t.name, roles: hcmsRoles(t) }));
+      const widgets = hcmsWidgets(page.html, page.url);
+      const onPage = new Set(widgets.flatMap((w) => w.types));
+      const rank = (exact) => (a, b) => (onPage.has(b.name.toLowerCase()) - onPage.has(a.name.toLowerCase())) || (exact.test(b.name) - exact.test(a.name));
+      let newsTypes = types.filter((t) => /news|press|release|announce|stories/i.test(t.name) && !/job|hiring|newsletter|alert|link|faq|employee|department|slide/i.test(t.name) && t.roles.title && t.roles.body)
+        .sort(rank(/^news$/i)).slice(0, 3);
+      let eventTypes = types.filter((t) => /event|calendar/i.test(t.name) && !/newsletter|link|faq/i.test(t.name) && t.roles.title && (t.roles.range || t.roles.date))
+        .sort(rank(/^events?$/i)).slice(0, 2);
+      if (!list.length) { newsTypes = [{ name: 'news', roles: HCMS_DEFAULT.news }]; eventTypes = [{ name: 'event', roles: HCMS_DEFAULT.event }, { name: 'events', roles: HCMS_DEFAULT.event }]; }
+      return { ...cfg, H, page, via, widgets, newsTypes, eventTypes, newsP, schema: list.length ? 'schema' : `defaults (content-types ${ct.status || ct.err})` };
+    })());
+  }
+  return ctx.cache.get('hcms:site');
+}
+// GET one content query; on a 400 (unknown field in $orderby/$filter) retry with the plain fallback query.
+async function hcmsQuery(site, type, query, fallback, signal) {
+  const url = (q) => `${site.api}/content/${site.app}/${encodeURIComponent(type)}?${Object.entries(q).map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join('&')}`;
+  let r = await fx(url(query), { as: 'json', headers: site.H, timeout: 8000, signal });
+  if (!(r.ok && r.json && Array.isArray(r.json.items)) && fallback && r.status >= 400 && r.status < 500 && r.status !== 401 && r.status !== 403) r = await fx(url(fallback), { as: 'json', headers: site.H, timeout: 8000, signal });
+  return r.ok && r.json && Array.isArray(r.json.items) ? { items: r.json.items, total: r.json.total } : { items: [], err: r.status || r.err };
+}
+// Asset metadata for many ids in one call -> Map(id -> asset); assets themselves are public (no token needed).
+async function hcmsAssets(site, ids, signal) {
+  const out = new Map();
+  if (!ids.length) return out;
+  const r = await fx(`${site.api}/apps/${site.app}/assets?ids=${ids.join(',')}`, { as: 'json', headers: site.H, timeout: 6000, signal });
+  for (const a of (r.ok && r.json && r.json.items) || []) if (a && a.id) out.set(a.id, a);
+  return out;
+}
+// Lead image ~1600 px wide: the original when it is at most 1600 px (no upscaling), else ?width=1600.
+function hcmsImage(site, id, meta) {
+  if (!id) return null;
+  const orig = `${site.api}/assets/${id}`;
+  if (meta && (meta.isImage === false || (meta.mimeType && !/^image\/(jpe?g|png|webp)$/i.test(meta.mimeType)))) return null;
+  const w = meta && Number(meta.pixelWidth || (meta.metadata || {}).pixelWidth);
+  if (w && w < 400) return null;
+  const desc = squish(String((meta && (meta.metadata || {}).description) || ''));
+  const alt = squish(String((meta && meta.altText) || '').replace(/^\[?\s*image description:\s*/i, '').replace(/\]\s*$/, '')) || (/\s\S+\s/.test(desc) && !/[-_]|\.(jpe?g|png|webp)|news item|graphic|flyer|logo/i.test(desc) ? desc : '');
+  if (!w) return { url: `${orig}?width=1600`, thumb: orig, alt };
+  return w > 1600 ? { url: `${orig}?width=1600`, thumb: `${orig}?width=1200`, alt } : { url: orig, thumb: orig, alt };
+}
+// Sentences, without splitting after abbreviations ("Oct. 7", "Va.", "p.m. on", "St.", "U.S.").
+const HCMS_ABBR = /(?:^|\s)(?:jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|mon|tue|tues|wed|thu|thurs|fri|sat|sun|st|ave|blvd|rd|dr|mr|mrs|ms|jr|sr|no|vs|inc|co|corp|dept|gov|sen|rep|ft|mt|[a-z]|[a-z]\.[a-z]|u\.s|a\.m|p\.m|va|ga|pa|ma|mi|tenn|nev|calif|fla|colo|ariz|ill|wash|mass|mich|conn)\.$/i;
+function hcmsSentences(p) {
+  const out = []; let cur = '';
+  for (const piece of String(p).split(/(?<=[.!?][”"’)]?)\s+(?=[A-Z“"‘(])/)) {
+    cur = cur ? `${cur} ${piece}` : piece;
+    if (!HCMS_ABBR.test(cur)) { out.push(cur); cur = ''; }
+  }
+  if (cur) out.push(cur);
+  return out;
+}
+// The first clean sentence or two (<= 200 chars, describe()'s cap) of the first prose paragraph.
+function hcmsLead(paragraphs) {
+  // the lead paragraph only (a later paragraph would not summarize the story); describe() trims when this fails
+  const para = (paragraphs || []).find((x) => squish(stripDateline(x)).length >= 60 && !(/^[^.!?]{2,40}:\s/.test(x) && x.length < 90));
+  const p = squish(stripDateline(para || ''));
+  let out = '';
+  for (const x of hcmsSentences(p)) { if (out && `${out} ${x}`.length > 200) break; out = out ? `${out} ${x}` : x; if (out.length >= 90) break; }
+  return out.length >= 40 && out.length <= 200 && /[.!?][”"’)]?$/.test(out) ? out : undefined;
+}
+const hcmsCats = (it) => (it.categories || []).map((c) => (c && c.name) || '').filter((n) => n && !/\bhome\b|homepage|spotlight|featured|slider|carousel|^news\b|\bnews$|design|setup|\btest|communications?\b|marketing|webmaster|admin|newsletter|clerk|^general$/i.test(n));
+const HCMS_JOBS = /\b(job (vacanc|opening|posting|opportunit)\w*|now hiring|we['’]re hiring|employment opportunit\w*|career opportunit\w*|(seeks|seeking) applicants)\b/i;
+
 const NEWS_STRATEGIES = {
   async 'wp-rest'(ctx, signal) {
     const tryHost = async (host) => {
@@ -894,6 +1067,50 @@ const NEWS_STRATEGIES = {
       }, 'opencities');
     });
     return { items: pickRecentNews(ctx, got.filter(Boolean)), note: `listing: ${(used.length ? used : pages).join(' ')} (${newsy.length} cards)` };
+  },
+
+  async 'civicplus-hcms'(ctx, signal) {
+    const site = await hcmsSite(ctx);
+    if (!site) return { items: [], note: 'not CivicPlus HCMS' };
+    if (!site.newsTypes.length) return { items: [], note: `HCMS ${site.app}: no news content type` };
+    const top = String(Math.max(20, ctx.need * 6));
+    const res = await Promise.all(site.newsTypes.map((t) => hcmsQuery(site, t.name,
+      { $top: top, $orderby: t.roles.date ? `data/${t.roles.date.name}/${t.roles.date.part} desc` : 'created desc' },
+      { $top: top, $orderby: 'created desc' }, signal)));
+    const seen = new Set();
+    const cands = [];
+    res.forEach((r, i) => {
+      const R = site.newsTypes[i].roles;
+      for (const it of r.items) {
+        if (!it || !it.data || seen.has(it.id)) continue;
+        seen.add(it.id);
+        if (HCMS_JOBS.test(String(hcmsVal(it.data, R.title) || ''))) continue;
+        const body = String(hcmsVal(it.data, R.body) || '');
+        const ids = [].concat(hcmsVal(it.data, R.image) || []).filter((x) => typeof x === 'string' && HCMS_UUID.test(x));
+        const inBody = (body.match(/<img\b[^>]*src=["'][^"']*\/api\/assets\/(?:[a-z0-9-]+\/)?([0-9a-f-]{36})/i) || [])[1];
+        const when = parseWhen(hcmsVal(it.data, R.date) || it.created || it.lastModified, ctx.tz);
+        cands.push({ id: it.id, type: site.newsTypes[i].name, title: squish(decodeEntities(stripTags(String(hcmsVal(it.data, R.title) || '')))), date: when && when.date, body, imageId: ids[0] || inBody, cats: hcmsCats(it) });
+      }
+    });
+    const recent = pickRecentNews(ctx, cands).slice(0, ctx.need * 2 + 3);
+    const meta = await hcmsAssets(site, [...new Set(recent.map((c) => c.imageId).filter(Boolean))], signal);
+    // article URL: /news?contentId=<id> when /news is this tenant's news page, else the widget's "view all" page
+    const nr = await site.newsP;
+    const newsPage = nr && nr.ok && isHcms(nr.text) ? { url: nr.url.replace(/[?#].*$/, ''), widgets: hcmsWidgets(nr.text, nr.url) } : null;
+    const listing = (type) => (newsPage && newsPage.widgets.some((w) => w.types.includes(type.toLowerCase())) ? newsPage.url : null)
+      || hcmsListing(site.widgets, type, /news|press|release|announce/i) || (newsPage && newsPage.url) || `${ctx.origin}/news`;
+    const items = recent.map((c) => {
+      const img = hcmsImage(site, c.imageId, meta.get(c.imageId));
+      const t0 = normKey(c.title);
+      const paragraphs = hcmsParagraphs(c.body).filter((p) => normKey(p) !== t0);
+      return normNews({
+        title: c.title, date: c.date, bodyParagraphs: paragraphs, description: hcmsLead(paragraphs),
+        leadImageUrl: img && img.url, leadImageThumb: img && img.thumb, leadImageAlt: img && img.alt,
+        sourceUrl: `${listing(c.type)}?contentId=${c.id}`, categories: c.cats, tz: ctx.tz,
+      }, 'civicplus-hcms');
+    });
+    const exp = site.exp ? ` token exp ${new Date(site.exp * 1000).toISOString().slice(0, 10)}` : '';
+    return { items: pickRecentNews(ctx, items.filter(Boolean)), note: `app ${site.app} via ${site.via} (${site.schema}); types ${site.newsTypes.map((t, i) => `${t.name}:${res[i].total != null ? res[i].total : res[i].err}`).join(' ')};${exp}` };
   },
 
   async html(ctx, signal) {
@@ -1114,6 +1331,66 @@ const EVENT_STRATEGIES = {
     res.forEach((r) => { if (r.ok && /BEGIN:VCALENDAR/.test(r.text || '')) raws.push(...parseIcs(r.text, ctx.tz).filter((e) => !e.rrule).map((e) => ({ ...e, sourceUrl: e.sourceUrl || r.url, strategy: 'ical' }))); });
     const picked = upcoming(ctx, raws).slice(0, ctx.need + 2);
     return { items: upcoming(ctx, picked.map((x) => normEvent(x, 'ical'))), note: d.icals.join(' ') };
+  },
+
+  async 'civicplus-hcms'(ctx, signal) {
+    const site = await hcmsSite(ctx);
+    if (!site) return { items: [], note: 'not CivicPlus HCMS' };
+    if (!site.eventTypes.length) return { items: [], note: `HCMS ${site.app}: no event content type` };
+    const nowIso = new Date().toISOString();
+    const res = await Promise.all(site.eventTypes.map((t) => {
+      const R = t.roles;
+      const f = R.range ? `data/${R.range.name}/${R.range.part}/startDate` : `data/${R.date.name}/${R.date.part}`;
+      return hcmsQuery(site, t.name, { $top: '100', $orderby: `${f} asc`, $filter: `${f} ge ${nowIso}` }, { $top: '100', $orderby: 'created desc' }, signal);
+    }));
+    const got = [];
+    res.forEach((r, i) => {
+      const t = site.eventTypes[i]; const R = t.roles;
+      const listing = hcmsListing(site.widgets, t.name, /event|calendar/i);
+      for (const it of r.items) {
+        const d = it && it.data;
+        if (!d) continue;
+        let s; let e; let allDay = false;
+        if (R.range) { const rg = hcmsVal(d, R.range) || {}; s = rg.startDate; e = rg.endDate; allDay = !!rg.allDay; } else s = hcmsVal(d, R.date);
+        const sw = s && parseWhen(s, ctx.tz);
+        if (!sw) continue;
+        const ew = e && parseWhen(e, ctx.tz);
+        const raw = { title: squish(decodeEntities(stripTags(String(hcmsVal(d, R.title) || '')))), startDate: sw.date, startTime: allDay ? undefined : sw.time, strategy: 'civicplus-hcms' };
+        if (ew && new Date(e) - new Date(s) >= 60000) { // meetings carry end = start + 1 s
+          raw.endDate = allDay && ew.time === '00:00' ? addDays(ew.date, -1) : ew.date;
+          raw.endTime = allDay ? undefined : ew.time;
+        }
+        if (raw.startTime === '00:00' && (!raw.endTime || raw.endTime >= '23:59')) { raw.startTime = undefined; raw.endTime = undefined; }
+        if (raw.endDate && dayDiff(raw.endDate, raw.startDate) > 3) continue; // multi-week windows/exhibits are not homepage events
+        const bodyHtml = String(hcmsVal(d, R.body) || '');
+        const bodyText = stripTags(bodyHtml);
+        if (/^\W*(cancel+ed|postponed)\b/i.test(bodyText) || /\bcancel+ed\b|\bpostponed\b/i.test(raw.title)) continue;
+        // location: named place (String/Multi field) + flattened Geolocation {address1, address2, city, state, zip}
+        const geo = hcmsVal(d, R.geo);
+        let addr = '';
+        if (geo && typeof geo === 'object') {
+          const parts = [geo.address1, geo.address2, geo.city, [geo.state, String(geo.zip || '').replace(/-\d{4}$/, '')].filter(Boolean).join(' ')].map((x) => squish(String(x || ''))).filter(Boolean);
+          addr = geo.address1 ? parts.join(', ') : squish(String(geo.searchedAddress || ''));
+        }
+        let place = hcmsVal(d, R.place);
+        place = stripTags(Array.isArray(place) ? place.join(', ') : String(place || ''));
+        let location = [...new Set([place, addr].filter(Boolean))].filter((x, k, a) => !a.some((y, j) => j !== k && y.length > x.length && y.toLowerCase().includes(x.toLowerCase()))).join(', ');
+        if (!location && /\bcouncil chambers?\b/i.test(`${bodyText} ${raw.title}`)) location = 'City Hall';
+        raw.location = location;
+        raw.bodyParagraphs = hcmsParagraphs(bodyHtml, { max: 3, maxChars: 900 }).filter((p) => !/^(dates?|times?|location|where|when|cost|fees?|ages?|price|registration|event type|calendar|address)\s*:/i.test(p));
+        raw.description = hcmsLead(raw.bodyParagraphs);
+        const link = hcmsVal(d, R.link);
+        const href = link && (typeof link === 'string' ? link : link.url);
+        raw.sourceUrl = (href && absUrl(href, site.page.url)) || (listing ? `${listing}?contentId=${it.id}` : site.page.url);
+        const ev = normEvent(raw, 'civicplus-hcms');
+        if (ev) got.push({ e: ev, rich: !!addr || raw.bodyParagraphs.some((p) => p.length >= 40 && /[.!?]/.test(p)) });
+      }
+    });
+    // rich-first (as opencities): events with a description or a street address beat bare board meetings
+    const rich = upcoming(ctx, got.filter((x) => x.rich).map((x) => x.e));
+    const poor = upcoming(ctx, got.filter((x) => !x.rich).map((x) => x.e));
+    const items = rich.length >= ctx.need ? rich : upcoming(ctx, [...rich, ...poor.slice(0, ctx.need - rich.length)]);
+    return { items, note: `app ${site.app} via ${site.via}; types ${site.eventTypes.map((t, i) => `${t.name}:${res[i].total != null ? res[i].total : res[i].err}`).join(' ')} (${rich.length} rich, ${poor.length} bare upcoming)` };
   },
 
   async legistar(ctx, signal) {

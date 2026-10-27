@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.9.1"
+  version: "5.9.2"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -86,7 +86,7 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata; search lag → `searchOk:false` + `warnings`, still exit 0 |
 | `preflight.cjs` | Stage mode | Off-the-clock readiness check (DA token, preview API, AEM login + not hibernated, Stock, Wikipedia), ~1 s |
 | `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
-| `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
+| `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus classic + HCMS/Engage 6, OpenCities, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
 | `brand.cjs <site> --out <dir> --json [--apply --slug <slug>]` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s. `--apply` (DA_TOKEN): uploads `logo.use`, rewrites header src/`logo-is`/home links, PUT + verify (~2 s; `--dry-run` = plan only) |
 | `place-nickname.cjs "<Wikipedia title>"` | Stage mode | Nickname/motto from the Wikipedia infobox for the localized hero line, ~0.3 s |
 
