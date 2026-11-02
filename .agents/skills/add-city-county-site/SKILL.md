@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.9.4"
+  version: "5.9.5"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -944,6 +944,7 @@ Tell the user:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| DA returns `403` (list/read/write) or admin.hlx.page preview/publish returns `403` | The SLICC Adobe login is in an org/profile the project's permissions don't cover. DA (Nov 2 2026) grants read on `/city-county/` and write on `sites/` + `metadata.json` to the **Adobe Inc org** (`3E692814636C53B60A495EC3`), the **SLG org's Public Sector SCs group** (`E4961D746578144C0A495FC6/Public Sector SCs`) and a few emails; preview/publish grant `*@adobe.com`. Logging into da.live in another org does NOT change SLICC's token. | Show the token's org: `curl -s -H "Authorization: Bearer $(oauth-token adobe)" https://ims-na1.adobelogin.com/ims/profile/v1` → `ownerOrg` and `email`. If it is a non-`@adobe.com` login or another org, re-login with `oauth-token adobe --force-login` using the Adobe Inc account; otherwise stop and tell the project owner (Jeff Foxx) the email + org. Don't retry writes in a loop. |
 | `curl` returns nothing / 401 | Token missing/expired or domain not allow-listed | Re-run Step 1 (`oauth-token adobe`, `oauth-domain add adobe admin.da.live`); run **da-auth** if needed |
 | New site's images are broken / show placeholder | Binaries under `.header/` weren't copied (doc-only clone) | Re-run Step 3 including hidden folders and binary files |
 | Links go to another city's host (e.g. `…--chrissands.aem.live`) | Foreign host prefix not stripped from links in Step 4 | Apply the links-only host-strip (the `(?!media_)` variant) to every copied text file |
