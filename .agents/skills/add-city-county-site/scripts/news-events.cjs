@@ -406,6 +406,7 @@ function parseArticle(html, url, tz) {
   if (!when) { const d = pageDate(html, tz); if (d) when = { date: d }; }
   if (!when) { const t = container.match(/<time\b[^>]*datetime=["']([^"']+)["']/i); if (t) when = parseWhen(t[1], tz); }
   if (!when) { const head = stripTags(container).slice(0, 400); when = parseWhen(head, tz); }
+  if (!when) for (const h of html.matchAll(/<h1\b/gi)) { when = parseWhen(stripTags(html.slice(h.index, h.index + 1500).replace(/<style[\s\S]*?<\/style>/gi, ' ')).slice(0, 400), tz); if (when) break; } // date just under the (real) h1
   const artAt = html.search(/<article\b/i);
   const art = artAt >= 0 ? sliceEl(html, artAt) : '';
   let image = firstImage(art && art.includes(container.slice(0, 200)) ? art : container, url);
@@ -533,9 +534,9 @@ function discover(home, origin) {
       if (u.hostname.replace(/^www\./, '') !== homeHost.replace(/^www\./, '')) hostCount.set(u.origin, (hostCount.get(u.origin) || 0) + 1);
       if (/(rss|feed)(\.xml|\/|$)|\.rss$|format=rss/i.test(u.pathname + u.search) && !/rssfeed\.aspx$/i.test(u.pathname)) d.feeds.push(l.href);
       const segs = u.pathname.toLowerCase().replace(/\/+$/, '').split('/').filter(Boolean);
-      const last = segs[segs.length - 1] || '';
-      if (/^(news|newsroom|news-?room|latest-news|news-releases|press-releases|press|press-room|announcements|news-and-announcements|newsflash|news-center|media-releases|civicalerts\.aspx)$/.test(last) && segs.length <= 3) d.newsPages.push(u.href);
-      if (/^(events|calendar|event-calendar|events-calendar|calendar-of-events|community-calendar|calendar\.aspx|meetings|public-meetings)$/.test(last) && segs.length <= 3) d.eventPages.push(u.href);
+      const last = (segs[segs.length - 1] || '').replace(/\.(s?html?|aspx?|php|jsp)$/, '').replace(/_/g, '-');
+      if (/^(news|newsroom|news-?room|latest-news|news-releases|press-releases|press|press-room|announcements|news-and-announcements|newsflash|news-center|media-releases|civicalerts)$/.test(last) && segs.length <= 6) d.newsPages.push(u.href);
+      if (/^(events|calendar|event-calendar|events-calendar|calendar-of-events|community-calendar|calendar\.aspx|meetings|public-meetings)$/.test(last) && segs.length <= 6) d.eventPages.push(u.href);
     }
   }
   const uniq = (a) => [...new Set(a)];
@@ -1125,13 +1126,17 @@ const NEWS_STRATEGIES = {
       ls.forEach((l, i) => {
         const u = new URL(l.href);
         if (!sameSite(u.hostname, lp.hostname) || seen.has(l.href)) return;
-        const last = u.pathname.replace(/\/+$/, '').split('/').pop() || '';
-        const looksArticle = (last.split('-').length >= 4 || /[?&](aid|id|articleid)=\d+/i.test(u.search)) && !/\b(category|tag|topics?|page|feed|rss|search|subscribe|archive|directory|policy|social)\b/i.test(u.pathname) && l.text.length >= 15;
+        const last = (u.pathname.replace(/\/+$/, '').split('/').pop() || '').replace(/\.(s?html?|aspx?|php|jsp)$/, '');
+        // dated archive paths (/news/2026/october/budget-town-hall.html) need only a 2-word slug
+        const datedPath = /\/(19|20)\d\d\//.test(u.pathname) && /(news|press|release|announce|media)/i.test(u.pathname) && last.split(/[-_]/).length >= 2;
+        const looksArticle = (last.split('-').length >= 4 || datedPath || /[?&](aid|id|articleid)=\d+/i.test(u.search)) && !/\b(category|tag|topics?|page|feed|rss|search|subscribe|archive|directory|policy|social)\b/i.test(u.pathname) && l.text.length >= 15;
         if (!looksArticle) return;
         seen.add(l.href);
         const win = r.text.slice(l.index, (ls[i + 1] ? ls[i + 1].index : l.index + 1500));
         const t = win.match(/<time\b[^>]*datetime=["']([^"']+)["']/i);
-        const when = t ? parseWhen(t[1], ctx.tz) : parseWhen(stripTags(win).slice(0, 300), ctx.tz);
+        // listings often put the date BEFORE the link (date column, then title): look back to the previous link
+        const back = stripTags(r.text.slice(Math.max(i ? ls[i - 1].index + 1 : 0, l.index - 400), l.index)).slice(-80);
+        const when = t ? parseWhen(t[1], ctx.tz) : (parseWhen(stripTags(win).slice(0, 300), ctx.tz) || parseWhen(back, ctx.tz));
         cands.push({ title: l.text, date: when && when.date, link: l.href, strategy: 'html' });
       });
     });
