@@ -15,7 +15,12 @@ const DEFAULT_AEM = 'https://author-p129103-e1259846.adobeaemcloud.com';
 async function check(name, fn) {
   const t0 = Date.now();
   try { const detail = await fn(); return { name, ok: true, ms: Date.now() - t0, detail }; }
-  catch (e) { return { name, ok: false, ms: Date.now() - t0, detail: String(e.message || e) }; }
+  catch (e) {
+    let detail = String(e.message || e);
+    const fb = detail.match(/forbidden: (\S+) on (\S+)/);
+    if (fb) detail += ` (SLICC blocked the secret locally; the server never saw the request. Add ${fb[2]} to the allowed domains of ${fb[1]}, e.g. \`secret scope ${fb[1]} --domain "<existing list>,${fb[2]}"\`, then RELOAD the SLICC page; the change only applies after a reload)`;
+    return { name, ok: false, ms: Date.now() - t0, detail };
+  }
 }
 
 async function preflight({ token = process.env.DA_TOKEN, aem = DEFAULT_AEM } = {}) {

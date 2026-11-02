@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.9.5"
+  version: "5.10.0"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -50,9 +50,23 @@ All calls carry `-H "Authorization: Bearer $TOKEN"`.
 
 **Audience:** the requester is typically a solutions consultant setting this
 up to demo to a prospective city or county — the goal is a fast, convincing,
-correctly-branded standalone-looking site, not a production launch. Confirm
-the derived slug and the palette (both cheap) before writing; keep publishing
-to `aem.live` gated behind explicit confirmation.
+correctly-branded standalone-looking site, not a production launch.
+
+**Ask as little as possible (5.10.0).** The requester gives a place name or a URL and expects a finished
+site. Decide, don't ask:
+
+| Decide yourself (state it in the hand-off) | Ask only when |
+|---|---|
+| Slug and entity name ("City of Chicago", `chicago`) | `resolve-place` returns `verified-ambiguous`, or the name can't be derived at all |
+| Palette (`brand.cjs`) and logo | never ask; report the hexes, and the requester can ask for a change |
+| Footer address (`find-address.cjs`) | never ask; if none is found, leave it out (the footer shows the entity name) |
+| City-vs-county wording in sample news/events | never ask; `news-events.cjs` fixes it automatically |
+| Hero photo, tagline, AEM Assets folder | never ask; do all of them every run |
+| Publishing news/events + `metadata.json` | never ask (the listings need it) |
+| **Publishing the homepage, header and footer to `aem.live`** | **always ask: this is the one question per run**, asked once, at the hand-off |
+
+Don't offer optional "small fixes" at the end (an address, a wording tweak). If the fix is safe, it should
+already be done; if it isn't, it's a skill bug, so mention it in one line.
 
 ## When to Use This Skill
 
@@ -90,6 +104,7 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
 | `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus classic + HCMS/Engage 6, OpenCities, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
 | `brand.cjs <site> --out <dir> --json [--apply --slug <slug>]` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s. `--apply` (DA_TOKEN): uploads `logo.use`, rewrites header src/`logo-is`/home links, PUT + verify (~2 s; `--dry-run` = plan only) |
+| `find-address.cjs --entity --state [--site]` | Stage mode, Step 4 | Real government street address for the footer: schema.org on the homepage, then the footer text, then OpenStreetMap City Hall / county building. Prints one line (exit 0) or nothing (exit 2). Never invents one. 1–6 s, 20 s cap |
 | `place-nickname.cjs "<Wikipedia title>"` | Stage mode | Nickname/motto from the Wikipedia infobox for the localized hero line, ~0.3 s |
 
 ---
@@ -121,8 +136,8 @@ audience, or set expectations, instead of discovering it on screen.
 | 0:00 | main | `node $SK/scripts/resolve-place.cjs "<audience input>" --json`. If `verified-ambiguous`, show the options and let the audience pick. Decide `SLUG`, `ENTITY` (e.g. "City of Boise") and `STATE`. |
 | 0:05 | main | `node $SK/scripts/news-probe.cjs <site>` (read-only, ~1–10 s). **If RED, say it now:** "this city's site uses <platform>, which we don't read yet, so the news will be sample stories." If YELLOW, mention what's partial. Then carry on; news-events at 0:30 still fills any gaps from the blueprint. |
 | 0:10 | **background job** | `node $SK/scripts/gather-images.cjs <site> /tmp/$SLUG-img --stock "<Place, State>" --commons "<P373>" --want 12` |
-| 0:10 | main | `node $SK/scripts/place-nickname.cjs "<Wikipedia title>" --json` → choose the tagline (rules below). Get the real street address from the site footer if it's quick (one fetch); otherwise skip it. |
-| 0:20 | main | `node $SK/scripts/clone-blueprint.cjs --slug $SLUG --entity "$ENTITY" --tagline "<tagline>" [--address "<addr>"] --json` (~8 s, must exit 0) |
+| 0:10 | main | `node $SK/scripts/place-nickname.cjs "<Wikipedia title>" --json` → choose the tagline (rules below). Same call: `ADDR=$(node $SK/scripts/find-address.cjs --entity "$ENTITY" --state "$STATE" --site <site>)` (1–6 s). |
+| 0:20 | main | `node $SK/scripts/clone-blueprint.cjs --slug $SLUG --entity "$ENTITY" --tagline "<tagline>" ${ADDR:+--address "$ADDR"} --json` (~8 s, must exit 0) |
 | 0:30 | **background job A** | News + events: `node $SK/scripts/news-events.cjs --site <site> --slug $SLUG --entity "$ENTITY" --images /tmp/$SLUG-img --tz <IANA tz> --publish --json` (hard cap 150 s; fills gaps from the blueprint automatically) |
 | 0:30 | **main (track B)** | Brand + logo in one call: `node $SK/scripts/brand.cjs <site> --out /tmp/$SLUG-brand --apply --slug $SLUG --json` (~2 s; must show `applied.verified: true`). It uploads `logo.use` to `fragments/nav/.header/logo.<ext>`, rewrites the header `<img>`, `logo-is` and home links, and verifies. Use its `palette` for the metadata row (overrides below). Read `warnings` aloud only if relevant. |
 | 0:30 | **main (track C)** | Look at all candidates in ONE view: `cd /tmp/$SLUG-img && convert s01.jpg s02.jpg s03.jpg s04.jpg s05.jpg s06.jpg -resize x200 +append /tmp/$SLUG-row1.jpg` (repeat for s07–s12 and the `c*` files; no `+repage`), then `open --view --size 1800x200` each row. Pick 6 + a hero (rules below), then `node $SK/scripts/make-manifest.cjs /tmp/$SLUG-img --slug $SLUG --entity "$ENTITY, $STATE" --pick s01,s04,… --hero c03 [--title c03="<what it shows>"]` (<1 s; writes `manifest.json` + `hero.jpg`). Pass `--title` for site photos (`c*`), whose auto titles come from file names. Upload the hero: `curl -s --max-time 30 -X PUT -H "Authorization: Bearer $DA_TOKEN" -F "data=@/tmp/$SLUG-img/hero.jpg;type=image/jpeg" https://admin.da.live/source/adobe-pubsec/city-county/sites/$SLUG/.index/hero.jpg` (no HTML edit needed). Then start **background job** `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json`. AEM processing (~2 min) runs in the background. |
@@ -143,7 +158,7 @@ audience, or set expectations, instead of discovering it on screen.
   - If `heroable` has a nickname, use it: "Serving the City of Oaks", "Your Government in the Land of the Sky", "Proudly Serving the Elm City". Keep it under about 45 characters, and prefer an official nickname or a "City of X" form.
   - If there's no nickname, write a short line from real landmarks you've already seen this run (Stock photo titles, the Wikipedia lead): "From Lake Tahoe to the High Desert". Use real place names only, and never invent a nickname or a motto.
   - If you're unsure, leave out `--tagline` (the default line stays).
-- **Address:** without `--address`, the footer address line shows the entity name, never the placeholder.
+- **Address:** always run `find-address.cjs` and pass what it prints. Without `--address` the footer line shows the entity name, never the placeholder. Don't ask the requester for an address or offer to add one later.
 - **Brand overrides:** `brand.cjs` picks the header color as primary. If a candidate in `palette.candidates` is clearly the darker brand color (it's listed with its evidence), swapping primary and secondary is fine. Primary must keep ≥ 4.5:1 contrast with white (the script checks).
 - **News is stage-safe:** news-events skips crime, violence, death, missing-person, crash and disaster headlines (arrests, shootings, "have you seen…", plane crashes, wildfires...) and takes the next real item instead. Still glance at the 3 headlines before you show them.
 - **Fallback is fine on stage:** news-events marks those items `origin: "fallback"`. Say so out loud, and don't retry. The 0:05 news-probe is what lets you say it *before* the site appears, not after.
@@ -232,7 +247,7 @@ https://www.wake.gov". That one URL does triple duty:
    `og:site_name`, or a prominent "City of ___" / "County of ___" heading.
    Slugify: lowercase, spaces/underscores → dashes, strip anything outside
    `[a-z0-9-]` (e.g. "Wake County Government" → `wake-county`).
-   **Confirm the derived name and slug with the user before proceeding.**
+   State the derived name and slug and carry on. Only stop to ask if the name is genuinely ambiguous (see 2a).
 2. **Colors and logo** — the same URL is the input to Step 6's extraction.
 3. **News and events content** — the same URL is also the input to Step 5's
    sourcing pass.
@@ -530,6 +545,10 @@ targeted pass on just `/sites/{{SLUG}}/news/**` and `/sites/{{SLUG}}/events/**`:
   `City County`/`City County Government` replacement: read each article in
   context and reword the locality mentions, don't blind-`sed` a fixed token
   that may not literally appear.
+- **City vs county nouns** are fixed automatically by `news-events.cjs` (`govReword`): a city tenant
+  never gets "County Legislative Building" / "County Executive" (→ City Hall / Mayor); a county tenant
+  never gets "City Council" / "City Hall" (→ County Board / County Government Center). If you edit the
+  samples by hand, follow the same rule.
 - **Don't fabricate specific facts** — real incidents, official names,
   statistics, addresses. Only reword the locality reference itself; leave
   the rest of the blueprint's placeholder narrative intact.
@@ -628,7 +647,7 @@ saturated/lighter variant) rather than inventing one; keep the
 primary-solid / accent-pop contrast relationship the blocks expect
 (`blocks/quick-links/quick-links.css`, `blocks/alert/alert.css`).
 
-**Confirm the 3 hex values with the user before writing.**
+Don't stop to confirm the 3 hex values. Apply them and list them in the hand-off; the requester can ask for a change.
 
 ### 6b. Logo
 Goal: replace the blueprint placeholder in the copied header fragment
@@ -741,7 +760,7 @@ page, not by fetching the source path.
 publicly, note the source/license (the Wikimedia file page) in case
 attribution is required.
 
-### 6d. AEM Assets folder with tenant photos (optional — when asked, or for the demo)
+### 6d. AEM Assets folder with tenant photos (every run; don't ask)
 
 Goal: a per-tenant folder in AEM Assets with **5–6 searchable photos** named
 for the city/county. **Default source: Adobe Stock watermarked comp previews**
@@ -936,7 +955,11 @@ Tell the user:
 >   populate — or: blueprint examples retained with locality reworded to
 >   `{{ENTITY}}`
 >
-> Not yet published to production — let me know when you want that pushed live.
+> - **Footer address:** {{ADDRESS}} (found on {{ADDRESS_SOURCE}}), or: entity name only (none found)
+>
+> **One question:** should I publish the homepage, header and footer to `aem.live`?
+
+That is the only question in the hand-off. Don't add "should I also…" offers.
 
 ---
 
@@ -944,6 +967,7 @@ Tell the user:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `curl: (1) forbidden: oauth.adobe.token on <host>` (or `fetch` fails with the same text) | SLICC itself refused to attach the token: `<host>` isn't in the secret's allowed domains. The server never saw the request, so this is **not** a DA permission problem | `secret test oauth.adobe.token https://<host>/` confirms it. Add the host to the token's allowed domains (`secret scope oauth.adobe.token --domain "<existing list>,<host>"`, approve the prompt), then **reload the SLICC page**; the new scope only applies after a reload. Needed hosts: `admin.da.live`, `content.da.live`, `admin.hlx.page`, `admin.aem.page`, `admin.aem.live`. Then re-run `preflight.cjs` |
 | DA returns `403` (list/read/write) or admin.hlx.page preview/publish returns `403` | The SLICC Adobe login is in an org/profile the project's permissions don't cover. DA (Nov 2 2026) grants read on `/city-county/` and write on `sites/` + `metadata.json` to the **Adobe Inc org** (`3E692814636C53B60A495EC3`), the **SLG org's Public Sector SCs group** (`E4961D746578144C0A495FC6/Public Sector SCs`) and a few emails; preview/publish grant `*@adobe.com`. Logging into da.live in another org does NOT change SLICC's token. | Show the token's org: `curl -s -H "Authorization: Bearer $(oauth-token adobe)" https://ims-na1.adobelogin.com/ims/profile/v1` → `ownerOrg` and `email`. If it is a non-`@adobe.com` login or another org, re-login with `oauth-token adobe --force-login` using the Adobe Inc account; otherwise stop and tell the project owner (Jeff Foxx) the email + org. Don't retry writes in a loop. |
 | `curl` returns nothing / 401 | Token missing/expired or domain not allow-listed | Re-run Step 1 (`oauth-token adobe`, `oauth-domain add adobe admin.da.live`); run **da-auth** if needed |
 | New site's images are broken / show placeholder | Binaries under `.header/` weren't copied (doc-only clone) | Re-run Step 3 including hidden folders and binary files |

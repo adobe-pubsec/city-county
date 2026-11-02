@@ -3,7 +3,7 @@ name: remove-city-county-site
 description: Removes ONE tenant site from the adobe-pubsec/city-county demo and every trace of it — unpublishes it from aem.live, removes it from preview, deletes all its Document Authoring files (including hidden image folders), removes its row from the shared /metadata.json, and deletes its AEM Assets photo folder — after showing the requester exactly what will be removed and getting a TYPED confirmation phrase. Use when someone wants to delete, remove, clean up, tear down or start over on a city/county site they built with add-city-county-site ("delete my Boise site", "remove /sites/boise", "clean up the test site", "that build went wrong, wipe it"). Do NOT use for the blueprint, for other DA projects, or to remove only part of a site.
 license: Apache-2.0
 metadata:
-  version: "1.2.1"
+  version: "1.2.2"
 ---
 
 # Remove a City/County Site
@@ -111,6 +111,7 @@ If it exits 1, don't retry blindly: show the failing lines; running plan + execu
 | Nothing found for the slug | Refused: check the spelling. |
 | AEM author not logged in / hibernated | Plan refused (exit 4): log in (or de-hibernate) and re-plan. No override. |
 | AEM folder gained images after the plan | Refused: re-plan and show it again. |
+| `forbidden: oauth.adobe.token on <host>` | SLICC refused to attach the token locally: `<host>` isn't in the secret's allowed domains. Not a server permission problem. | Add the host (`secret scope oauth.adobe.token --domain "<existing list>,<host>"`), **reload the SLICC page**, then re-plan. |
 | DA or preview/publish answers `403` | The SLICC Adobe login's org isn't covered (access is granted to the Adobe Inc org, the SLG org's Public Sector SCs group, and `*@adobe.com` for preview/publish). Show `ownerOrg`/`email` from `https://ims-na1.adobelogin.com/ims/profile/v1` and tell the project owner; nothing is deleted until every check passes, but a 403 mid-execute can leave a partial removal: re-plan and re-run once access is fixed. |
 
 ## What can't be removed

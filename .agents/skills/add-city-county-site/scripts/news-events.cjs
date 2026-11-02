@@ -1562,9 +1562,23 @@ function readMeta(html) {
   while ((m = re.exec(src))) meta[stripTags(m[1]).toLowerCase()] = stripTags(m[2]);
   return meta;
 }
+// The blueprint samples mix city and county government nouns (a "County Legislative Building" event, a "City Council"
+// meeting). Make them match the tenant's kind before the entity reword, so a city never meets at a county building.
+function govReword(text, entity) {
+  const county = /\b(county|parish)\b/i.test(entity);
+  const rules = county ? [
+    [/\bCity Hall Chambers\b/g, 'County Board Chambers'], [/(^|[.!?]\s+)City Hall\b/g, '$1The County Government Center'], [/\bCity Hall\b/g, 'the County Government Center'],
+    [/\bCity Council\b/g, 'County Board'], [/\b([Cc])ity council\b/g, (m, c) => (c === 'C' ? 'County board' : 'county board')], [/\bCity Clerk\b/g, 'County Clerk'], [/\bCouncil meetings\b/g, 'Board meetings'],
+    [/\bcity (governance|business|website)\b/g, 'county $1'], [/\b([Tt])he city's\b/g, '$1he county\'s'],
+  ] : [
+    [/\b[Tt]he county legislative building\b/g, 'City Hall'], [/\bCounty Legislative Building\b/g, 'City Hall'], [/\bcounty legislative building\b/g, 'City Hall'],
+    [/\bOffice of the County Executive\b/g, 'Office of the Mayor'], [/\bCounty Executive\b/g, 'Mayor'],
+  ];
+  return rules.reduce((t, [re, to]) => t.replace(re, to), text);
+}
 // Step 4's longest-first entity replacement, then a deterministic locality reword.
 function localize(text, entity) {
-  let t = text.replace(/City County Government/g, `${entity} Government`).replace(/City County/g, entity);
+  let t = govReword(text, entity).replace(/City County Government/g, `${entity} Government`).replace(/City County/g, entity);
   t = t.replace(/\b[Tt]he (county|city)['’]s\b/g, `${entity}’s`);
   t = t.replace(/\b[Tt]he (county|city)\b(?=\s+(?:has|have|had|is|was|will|and|to|in|for|on|at|as|publishes|announces|reports|said|says|of|officials)\b|[.,;:!?)]|$)/g, entity);
   t = t.replace(/\b([Tt])he (county|city)\b/g, (m, T) => `${T}he ${entity}`);
