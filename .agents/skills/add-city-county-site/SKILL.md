@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.9.2"
+  version: "5.9.3"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -85,6 +85,7 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | `make-manifest.cjs <dir> --slug --entity --pick s01,c03,… [--hero <id>]` | Step 6d | Picked IDs → aem-assets manifest (Stock titles/artists/rights, real-format JPEGs); `--hero` writes `<dir>/hero.jpg` (Stock strip cropped) |
 | `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata; search lag → `searchOk:false` + `warnings`, still exit 0 |
 | `preflight.cjs` | Stage mode | Off-the-clock readiness check (DA token, preview API, AEM login + not hibernated, Stock, Wikipedia), ~1 s |
+| `news-probe.cjs "<place or url>" […]` | Stage mode | Read-only: will this city's REAL news/events show up? GREEN / YELLOW / RED per place, with the headlines it would use and the reason (e.g. "site uses Granicus govAccess"), ~1–10 s each. Exit 0 green, 2 yellow, 1 red |
 | `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
 | `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus classic + HCMS/Engage 6, OpenCities, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
 | `brand.cjs <site> --out <dir> --json [--apply --slug <slug>]` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s. `--apply` (DA_TOKEN): uploads `logo.use`, rewrites header src/`logo-is`/home links, PUT + verify (~2 s; `--dry-run` = plan only) |
@@ -104,13 +105,20 @@ script does and for manual recovery. Don't re-read them during a stage run.
 SK=/workspace/skills/add-city-county-site
 export DA_TOKEN=$(oauth-token adobe | tr -d '[:space:]')
 node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line first
+# Probe the places the audience is likely to shout (host city, state capitals, the room's home towns):
+node $SK/scripts/news-probe.cjs "Alpharetta, Georgia" "Raleigh, North Carolina" "Boise, Idaho"
 ```
+
+RED means that city's news will be blueprint samples (its CMS isn't one news-events can read);
+YELLOW means real but partial, meetings-only or stale. Knowing this beforehand lets you steer the
+audience, or set expectations, instead of discovering it on screen.
 
 **On the clock:**
 
 | t | Track | Command / action |
 |---|---|---|
 | 0:00 | main | `node $SK/scripts/resolve-place.cjs "<audience input>" --json`. If `verified-ambiguous`, show the options and let the audience pick. Decide `SLUG`, `ENTITY` (e.g. "City of Boise") and `STATE`. |
+| 0:05 | main | `node $SK/scripts/news-probe.cjs <site>` (read-only, ~1–10 s). **If RED, say it now:** "this city's site uses <platform>, which we don't read yet, so the news will be sample stories." If YELLOW, mention what's partial. Then carry on; news-events at 0:30 still fills any gaps from the blueprint. |
 | 0:10 | **background job** | `node $SK/scripts/gather-images.cjs <site> /tmp/$SLUG-img --stock "<Place, State>" --commons "<P373>" --want 12` |
 | 0:10 | main | `node $SK/scripts/place-nickname.cjs "<Wikipedia title>" --json` → choose the tagline (rules below). Get the real street address from the site footer if it's quick (one fetch); otherwise skip it. |
 | 0:20 | main | `node $SK/scripts/clone-blueprint.cjs --slug $SLUG --entity "$ENTITY" --tagline "<tagline>" [--address "<addr>"] --json` (~8 s, must exit 0) |
@@ -137,7 +145,7 @@ node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line 
 - **Address:** without `--address`, the footer address line shows the entity name, never the placeholder.
 - **Brand overrides:** `brand.cjs` picks the header color as primary. If a candidate in `palette.candidates` is clearly the darker brand color (it's listed with its evidence), swapping primary and secondary is fine. Primary must keep ≥ 4.5:1 contrast with white (the script checks).
 - **News is stage-safe:** news-events skips crime, violence, death, missing-person, crash and disaster headlines (arrests, shootings, "have you seen…", plane crashes, wildfires...) and takes the next real item instead. Still glance at the 3 headlines before you show them.
-- **Fallback is fine on stage:** news-events marks those items `origin: "fallback"`. Say so out loud, and don't retry.
+- **Fallback is fine on stage:** news-events marks those items `origin: "fallback"`. Say so out loud, and don't retry. The 0:05 news-probe is what lets you say it *before* the site appears, not after.
 
 ---
 
