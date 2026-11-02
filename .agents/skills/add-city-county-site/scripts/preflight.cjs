@@ -18,7 +18,7 @@ async function check(name, fn) {
   catch (e) {
     let detail = String(e.message || e);
     const fb = detail.match(/forbidden: (\S+) on (\S+)/);
-    if (fb) detail += ` (SLICC blocked the secret locally; the server never saw the request. Add ${fb[2]} to the allowed domains of ${fb[1]}, e.g. \`secret scope ${fb[1]} --domain "<existing list>,${fb[2]}"\`, then RELOAD the SLICC page; the change only applies after a reload)`;
+    if (fb) detail += ` (SLICC blocked the secret locally; the server never saw the request. Run \`bash /workspace/skills/add-city-county-site/scripts/token-scope.sh\` (oauth-domain add adobe ${fb[2]}), then RELOAD the SLICC page; new hosts only apply after a reload)`;
     return { name, ok: false, ms: Date.now() - t0, detail };
   }
 }
@@ -37,6 +37,12 @@ async function preflight({ token = process.env.DA_TOKEN, aem = DEFAULT_AEM } = {
       const p = '/shared/lib/node_modules/@imagemagick/magick-wasm/package.json';
       if (!fs.existsSync(p)) throw new Error('magick-wasm missing (ipk add -g @imagemagick/magick-wasm@0.0.44): needed to crop the Stock ID strip off the hero');
       return 'magick-wasm ' + JSON.parse(fs.readFileSync(p, 'utf8')).version;
+    }),
+    check('token scope (SLICC allow-list)', async () => {
+      const { execSync } = require('child_process');
+      const miss = ['admin.da.live', 'content.da.live', 'admin.hlx.page'].filter((h) => { try { execSync(`secret test oauth.adobe.token https://${h}/`, { stdio: 'ignore' }); return false; } catch (e) { return true; } });
+      if (miss.length) throw new Error('oauth.adobe.token not allowed for ' + miss.join(', ') + ': run bash /workspace/skills/add-city-county-site/scripts/token-scope.sh, then reload the SLICC page');
+      return 'admin.da.live, content.da.live, admin.hlx.page';
     }),
     check('DA token + repo', async () => {
       if (!token) throw new Error('DA_TOKEN not set: DA_TOKEN=$(oauth-token adobe | tr -d "[:space:]")');

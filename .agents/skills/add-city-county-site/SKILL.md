@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.10.0"
+  version: "5.10.2"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -119,6 +119,7 @@ script does and for manual recovery. Don't re-read them during a stage run.
 **Off the clock (before the audience picks):**
 ```bash
 SK=/workspace/skills/add-city-county-site
+bash $SK/scripts/token-scope.sh || exit 1   # first-time SLICC: adds DA hosts, then asks for ONE page reload
 export DA_TOKEN=$(oauth-token adobe | tr -d '[:space:]')
 node $SK/scripts/preflight.cjs        # must print ALL GREEN; fix any FAIL line first
 # Probe the places the audience is likely to shout (host city, state capitals, the room's home towns):
@@ -191,7 +192,14 @@ if [ -n "$MISSING" ]; then
   exit 1
 fi
 echo "All required companion skills present."
+
+# Token scope: SLICC only attaches the Adobe token to allow-listed hosts.
+bash /workspace/skills/add-city-county-site/scripts/token-scope.sh || exit 1
 ```
+
+If `token-scope.sh` stops, it has already added the missing hosts (`oauth-domain add adobe …`).
+Tell the requester to **reload the SLICC page once** and ask again; don't retry, don't edit secrets.
+This only happens on an SC's first run.
 
 **Do NOT proceed past this point if any required skill is missing.** The
 `da-content` skill contains the DA Source API contract, sheet JSON format,
@@ -967,7 +975,7 @@ That is the only question in the hand-off. Don't add "should I also…" offers.
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `curl: (1) forbidden: oauth.adobe.token on <host>` (or `fetch` fails with the same text) | SLICC itself refused to attach the token: `<host>` isn't in the secret's allowed domains. The server never saw the request, so this is **not** a DA permission problem | `secret test oauth.adobe.token https://<host>/` confirms it. Add the host to the token's allowed domains (`secret scope oauth.adobe.token --domain "<existing list>,<host>"`, approve the prompt), then **reload the SLICC page**; the new scope only applies after a reload. Needed hosts: `admin.da.live`, `content.da.live`, `admin.hlx.page`, `admin.aem.page`, `admin.aem.live`. Then re-run `preflight.cjs` |
+| `curl: (1) forbidden: oauth.adobe.token on <host>` (or `fetch` fails with the same text) | SLICC itself refused to attach the token: `<host>` isn't in the secret's allowed domains. The server never saw the request, so this is **not** a DA permission problem | `secret test oauth.adobe.token https://<host>/` confirms it. Run `bash $SK/scripts/token-scope.sh` (it runs `oauth-domain add adobe <host>` for each missing host), then **reload the SLICC page**; new hosts only apply after a reload. Don't use `secret scope`: the OAuth token's list is rebuilt from `oauth-domain` on each reload. Needed hosts: `admin.da.live`, `content.da.live`, `admin.hlx.page`, `admin.aem.page`, `admin.aem.live`. Then re-run `preflight.cjs` |
 | DA returns `403` (list/read/write) or admin.hlx.page preview/publish returns `403` | The SLICC Adobe login is in an org/profile the project's permissions don't cover. DA (Nov 2 2026) grants read on `/city-county/` and write on `sites/` + `metadata.json` to the **Adobe Inc org** (`3E692814636C53B60A495EC3`), the **SLG org's Public Sector SCs group** (`E4961D746578144C0A495FC6/Public Sector SCs`) and a few emails; preview/publish grant `*@adobe.com`. Logging into da.live in another org does NOT change SLICC's token. | Show the token's org: `curl -s -H "Authorization: Bearer $(oauth-token adobe)" https://ims-na1.adobelogin.com/ims/profile/v1` → `ownerOrg` and `email`. If it is a non-`@adobe.com` login or another org, re-login with `oauth-token adobe --force-login` using the Adobe Inc account; otherwise stop and tell the project owner (Jeff Foxx) the email + org. Don't retry writes in a loop. |
 | `curl` returns nothing / 401 | Token missing/expired or domain not allow-listed | Re-run Step 1 (`oauth-token adobe`, `oauth-domain add adobe admin.da.live`); run **da-auth** if needed |
 | New site's images are broken / show placeholder | Binaries under `.header/` weren't copied (doc-only clone) | Re-run Step 3 including hidden folders and binary files |
