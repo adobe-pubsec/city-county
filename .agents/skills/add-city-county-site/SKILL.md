@@ -3,7 +3,7 @@ name: add-city-county-site
 description: Creates a new tenant site for the adobe-pubsec/city-county demo by duplicating /blueprint into /sites/<slug> in DA (via the DA Source API), populating it with real (or localized-fallback) news and events content, registering it in /metadata.json with a color-primary/secondary/accent palette and logo extracted from a sample site the requester provides, and previewing the result. Use whenever a user wants to add a new city/county site to this repeatable demo — invoked as a URL ("Add a site for https://www.cityname.gov") or just a place name, e.g. an audience suggestion like "Boise" or "Fairfax County" (the official site is resolved via Wikipedia/Wikidata). Optionally also creates a per-tenant AEM Assets folder with 5–6 searchable, city-named photos (Adobe Stock watermarked previews, official-site photo for the hero, Wikimedia Commons as fallback). Do NOT use for creating a brand-new GitHub repo/DA project from scratch — that's the separate create-site skill.
 license: Apache-2.0
 metadata:
-  version: "5.9.3"
+  version: "5.9.4"
 ---
 
 # Add a New Tenant Site (blueprint → /sites/<slug>)
@@ -86,6 +86,7 @@ a CLI or via `require()`). Set `SK` to this skill's folder — in SLICC usually
 | `aem-assets.cjs <manifest.json>` | Step 6d | Creates the AEM Assets folder, uploads, waits for processing, sets + verifies metadata; search lag → `searchOk:false` + `warnings`, still exit 0 |
 | `preflight.cjs` | Stage mode | Off-the-clock readiness check (DA token, preview API, AEM login + not hibernated, Stock, Wikipedia), ~1 s |
 | `news-probe.cjs "<place or url>" […]` | Stage mode | Read-only: will this city's REAL news/events show up? GREEN / YELLOW / RED per place, with the headlines it would use and the reason (e.g. "site uses Granicus govAccess"), ~1–10 s each. Exit 0 green, 2 yellow, 1 red |
+| `register-tenant.cjs --slug --primary --secondary --accent [--publish]` | Step 7 | Adds/updates the tenant's row in the SHARED `/metadata.json`, then re-reads for ~8 s and re-applies the row if someone else's save dropped it (concurrent builds). `--publish` previews + publishes the sheet and checks the delivered copy. `--remove` for cleanup. ~10 s |
 | `clone-blueprint.cjs --slug --entity [--address] [--tagline]` | Steps 3–4 | Deterministic clone + rewrite + verify, ~8 s; refuses to overwrite |
 | `news-events.cjs --site --slug --entity [--budget 150] [--publish]` | Step 5 | Real news/events (WP, Tribe, RSS, CivicPlus classic + HCMS/Engage 6, OpenCities, Legistar, iCal, HTML) under a hard time cap, blueprint fallback; writes + previews (+ publishes) |
 | `brand.cjs <site> --out <dir> --json [--apply --slug <slug>]` | Steps 6a–6b | Palette (P/S/A + ranked candidates) and logo (incl. CSS-background and lazy logos), intrinsic size → `logoIs`, white-logo detection + `logo-recolored.svg`, ~0.1–1.5 s. `--apply` (DA_TOKEN): uploads `logo.use`, rewrites header src/`logo-is`/home links, PUT + verify (~2 s; `--dry-run` = plan only) |
@@ -125,8 +126,8 @@ audience, or set expectations, instead of discovering it on screen.
 | 0:30 | **background job A** | News + events: `node $SK/scripts/news-events.cjs --site <site> --slug $SLUG --entity "$ENTITY" --images /tmp/$SLUG-img --tz <IANA tz> --publish --json` (hard cap 150 s; fills gaps from the blueprint automatically) |
 | 0:30 | **main (track B)** | Brand + logo in one call: `node $SK/scripts/brand.cjs <site> --out /tmp/$SLUG-brand --apply --slug $SLUG --json` (~2 s; must show `applied.verified: true`). It uploads `logo.use` to `fragments/nav/.header/logo.<ext>`, rewrites the header `<img>`, `logo-is` and home links, and verifies. Use its `palette` for the metadata row (overrides below). Read `warnings` aloud only if relevant. |
 | 0:30 | **main (track C)** | Look at all candidates in ONE view: `cd /tmp/$SLUG-img && convert s01.jpg s02.jpg s03.jpg s04.jpg s05.jpg s06.jpg -resize x200 +append /tmp/$SLUG-row1.jpg` (repeat for s07–s12 and the `c*` files; no `+repage`), then `open --view --size 1800x200` each row. Pick 6 + a hero (rules below), then `node $SK/scripts/make-manifest.cjs /tmp/$SLUG-img --slug $SLUG --entity "$ENTITY, $STATE" --pick s01,s04,… --hero c03 [--title c03="<what it shows>"]` (<1 s; writes `manifest.json` + `hero.jpg`). Pass `--title` for site photos (`c*`), whose auto titles come from file names. Upload the hero: `curl -s --max-time 30 -X PUT -H "Authorization: Bearer $DA_TOKEN" -F "data=@/tmp/$SLUG-img/hero.jpg;type=image/jpeg" https://admin.da.live/source/adobe-pubsec/city-county/sites/$SLUG/.index/hero.jpg` (no HTML edit needed). Then start **background job** `node $SK/scripts/aem-assets.cjs /tmp/$SLUG-img/manifest.json`. AEM processing (~2 min) runs in the background. |
-| ~2:30 | main | Step 7: append the metadata row (GET → append → PUT → re-GET verify). |
-| ~2:45 | main | Preview in one batch, then publish `metadata.json` (only now, after the row exists): `for p in sites/$SLUG/index sites/$SLUG/fragments/nav/header sites/$SLUG/fragments/nav/footer sites/$SLUG/fragments/nav/header/languages metadata.json; do curl -s -o /dev/null -w "%{http_code} $p\n" --max-time 30 -X POST -H "Authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/adobe-pubsec/city-county/main/$p; done; curl -s -o /dev/null -w "%{http_code} live metadata\n" --max-time 30 -X POST -H "Authorization: Bearer $DA_TOKEN" https://admin.hlx.page/live/adobe-pubsec/city-county/main/metadata.json` (all 200). |
+| ~2:30 | main | Step 7 + metadata publish in one call: `node $SK/scripts/register-tenant.cjs --slug $SLUG --primary <hex> --secondary <hex> --accent <hex> --publish` (~10 s, must end `OK … confirmed and published`). Safe when other SCs are building at the same time. |
+| ~2:45 | main | Preview the tenant pages in one batch (`metadata.json` was already published by register-tenant): `for p in sites/$SLUG/index sites/$SLUG/fragments/nav/header sites/$SLUG/fragments/nav/footer sites/$SLUG/fragments/nav/header/languages; do curl -s -o /dev/null -w "%{http_code} $p\n" --max-time 30 -X POST -H "Authorization: Bearer $DA_TOKEN" https://admin.hlx.page/preview/adobe-pubsec/city-county/main/$p; done` (all 200). |
 | ~3:00 | main | Open `https://main--city-county--adobe-pubsec.aem.page/sites/$SLUG/` for the audience **right away**; inspect JSON afterwards, not before. Check: palette, logo, hero, 3 news, 3 events. For DOM checks use `playwright-cli eval-file` (inline `eval` with object literals is misparsed). |
 | ~4:00 | main | When `aem-assets.cjs` finishes, show `/content/dam/city-county/$SLUG/` in AEM Assets. Show the folder; don't rely on a live search, because the index can lag. |
 
@@ -831,6 +832,18 @@ on city sites are excluded automatically.
 `{ "total", "limit", "offset", "data": [ …rows… ], ":colWidths", ":sheetname":"data", ":type":"sheet" }`.
 You must preserve that envelope and every existing row (see **da-content**
 for sheet rules — writing a bare array corrupts it silently).
+
+**Use `scripts/register-tenant.cjs`** (it does 1–3 plus the verify, and survives concurrent builds):
+
+```bash
+node $SK/scripts/register-tenant.cjs --slug {{SLUG}} --primary {{PRIMARY_HEX}} --secondary {{SECONDARY_HEX}} --accent {{ACCENT_HEX}} [--publish]
+```
+
+`/metadata.json` is shared by every SC building a tenant. A manual GET → append → PUT that
+runs while someone else's does silently drops one of the rows (that site then renders without its
+palette). The script writes, re-reads for ~8 s, and re-applies its row if it was dropped; exit 0
+means the row is confirmed. Never hand-edit the sheet while others are building. The manual
+procedure below is the reference and the fallback:
 
 1. `GET` the current sheet.
 2. Append (or replace, if a row for this slug exists — idempotent) one row,
